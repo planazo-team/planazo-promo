@@ -1,8 +1,8 @@
-import { Promotion, Zone } from '../types';
+import { Promotion, Zone, AppNotification } from '../types';
 import { INITIAL_PROMOTIONS } from '../data/mockData';
 
 export interface DomainEvent {
-  type: 'PROMO.PUSH' | 'PROMO.WON' | 'PROMO.REJECTED' | 'PROMO.EXPIRED';
+  type: 'PROMO.PUSH' | 'PROMO.WON' | 'PROMO.REJECTED' | 'PROMO.EXPIRED' | 'EVENT.NEW';
   seq: number;
   timestamp: string;
   data: any;
@@ -10,6 +10,7 @@ export interface DomainEvent {
 
 class PromoService {
   private promotions: Map<string, Promotion> = new Map();
+  private notifications: AppNotification[] = [];
   private eventLog: DomainEvent[] = [];
   private globalSeq = 0;
   private locks: Map<string, Promise<void>> = new Map();
@@ -23,6 +24,32 @@ class PromoService {
     INITIAL_PROMOTIONS.forEach(p => {
       this.promotions.set(p.id, { ...p });
     });
+
+    // Seed initial notifications
+    this.notifications = [
+      {
+        id: 'notif-1',
+        title: '⚡ ¡Nueva Oferta 2x1 en Zona G!',
+        message: 'Gato Negro Bistro acaba de lanzar 2x1 en cócteles de autor. ¡Quedan 8 cupos!',
+        type: 'promo',
+        timestamp: new Date(Date.now() - 300000).toISOString(),
+        read: false,
+        zone: 'Zona G',
+        placeName: 'Gato Negro Bistro',
+        linkId: 'prm-1'
+      },
+      {
+        id: 'notif-2',
+        title: '🎉 Noche de Jazz Confirmada',
+        message: 'Se ha programado "Noche de Jazz y Maridaje Francés" para mañana a las 19:30.',
+        type: 'event',
+        timestamp: new Date(Date.now() - 900000).toISOString(),
+        read: false,
+        zone: 'Zona G',
+        placeName: 'Gato Negro Bistro',
+        linkId: 'evt-1'
+      }
+    ];
   }
 
   private emitEvent(type: DomainEvent['type'], data: any): DomainEvent {
@@ -41,12 +68,35 @@ class PromoService {
     return [...this.eventLog];
   }
 
+  // --- NOTIFICATIONS (HU-89 & HU-90) ---
+  public getNotifications(): AppNotification[] {
+    return [...this.notifications].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }
+
+  public markNotificationAsRead(id: string) {
+    this.notifications = this.notifications.map(n => n.id === id ? { ...n, read: true } : n);
+  }
+
+  public markAllNotificationsAsRead() {
+    this.notifications = this.notifications.map(n => ({ ...n, read: true }));
+  }
+
+  public addNotification(n: Omit<AppNotification, 'id' | 'timestamp' | 'read'>): AppNotification {
+    const notification: AppNotification = {
+      ...n,
+      id: `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      timestamp: new Date().toISOString(),
+      read: false
+    };
+    this.notifications.unshift(notification);
+    return notification;
+  }
+
   // GET /promos & /promos/place/:placeId (HU-17)
   public getPromotions(options?: { placeId?: string; zone?: string; activeOnly?: boolean }): Promotion[] {
     const now = Date.now();
     let list = Array.from(this.promotions.values());
 
-    // Auto-update status
     list = list.map(p => {
       const expTime = new Date(p.expiresAt).getTime();
       if (expTime <= now && p.status === 'Activa') {
@@ -88,9 +138,9 @@ class PromoService {
       discountCode: string;
       initialStock: number;
       expiresAt: string;
+      placeName?: string;
     }
   ): { success: boolean; promo?: Promotion; error?: string; code?: string } {
-    // 1. Mandatory Data Validation (HU-26 CA1)
     if (!data.title || data.title.trim().length === 0) {
       return { success: false, error: 'El título de la promoción es obligatorio.', code: 'INVALID_TITLE' };
     }
@@ -124,17 +174,46 @@ class PromoService {
 
     this.promotions.set(newPromo.id, newPromo);
 
-    // Emite evento de dominio PROMO.PUSH (§6.4)
+    // Emite evento PROMO.PUSH
     this.emitEvent('PROMO.PUSH', {
       promoId: newPromo.id,
       placeId: newPromo.establishmentId,
       zone: newPromo.zone,
-      title: newPromo.title,
-      discountCode: newPromo.discountCode,
-      initialStock: newPromo.initialStock
+      title: newPromo.title
+    });
+
+    // Crear notificación para usuarios (HU-89)
+    this.addNotification({
+      title: `⚡ ¡Nueva Oferta en ${zone}!`,
+      message: `${data.placeName || 'Un establecimiento'} ha lanzado: "${newPromo.title}" (${newPromo.currentStock} cupos)`,
+      type: 'promo',
+      zone: zone,
+      placeName: data.placeName,
+      linkId: newPromo.id
     });
 
     return { success: true, promo: newPromo };
+  }
+
+  // PUT /promos/:id (HU-69 Update Promo)
+  public updatePromotion(id: string, data: Partial<Promotion>): { success: boolean; promo?: Promotion; error?: string } {
+    const promo = this.promotions.get(id);
+    if (!promo) return { success: false, error: 'La promoción no fue encontrada.' };
+
+    const updated: Promotion = {
+      ...promo,
+      ...data,
+      title: data.title ? data.title.trim() : promo.title,
+      description: data.description ? data.description.trim() : promo.description
+    };
+
+    this.promotions.set(id, updated);
+    return { success: true, promo: updated };
+  }
+
+  // DELETE /promos/:id (HU-69 Delete Promo)
+  public deletePromotion(id: string): boolean {
+    return this.promotions.delete(id);
   }
 
   // POST /promos/:id/claim (CC-1 Atomic Decrement & Concurrency Challenge)
@@ -146,7 +225,6 @@ class PromoService {
     discountCode?: string;
     remainingStock?: number;
   }> {
-    // Acquire mutex lock per promo ID to ensure atomic DECR operation (CC-1)
     const releaseLock = await this.acquireLock(promoId);
 
     try {
@@ -172,7 +250,6 @@ class PromoService {
         };
       }
 
-      // CC-1 Atomic Check & Decrement
       if (promo.currentStock <= 0) {
         promo.status = 'Agotada';
         this.emitEvent('PROMO.REJECTED', { promoId: promo.id, userId, reason: 'STOCK_EXHAUSTED' });
@@ -184,7 +261,6 @@ class PromoService {
         };
       }
 
-      // Indivisible Decrement
       promo.currentStock -= 1;
       if (promo.currentStock === 0) {
         promo.status = 'Agotada';
@@ -192,7 +268,6 @@ class PromoService {
 
       this.promotions.set(promoId, promo);
 
-      // Emite evento PROMO.WON (§6.4)
       this.emitEvent('PROMO.WON', {
         promoId: promo.id,
         userId,

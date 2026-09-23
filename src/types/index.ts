@@ -56,9 +56,21 @@ export interface Promotion {
   initialStock: number;
   currentStock: number;
   expiresAt: string; // ISO String
-  status: 'Activa' | 'Agotada' | 'Expirada';
+  status: 'Activa' | 'Agotada' | 'Expirada' | 'Pausada';
   zone: Zone;
   createdAt: string;
+}
+
+export interface AppNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'promo' | 'event';
+  timestamp: string;
+  read: boolean;
+  zone: Zone;
+  placeName?: string;
+  linkId?: string;
 }
 
 export type UserRole = 'establishment' | 'customer';
@@ -69,4 +81,5 @@ export interface FilterOptions {
   searchQuery: string;
   onlyWithPromos: boolean;
   onlyWithEvents: boolean;
+  occupancyFilter: 'todas' | 'disponible' | 'media' | 'lleno';
 }

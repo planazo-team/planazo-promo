@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { UserRole, Establishment } from '../types';
-import { Zap, Store, Users, MapPin, RefreshCw, Flame, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Zap, Store, Users, MapPin, RefreshCw, Flame, CheckCircle2 } from 'lucide-react';
 import { storeService } from '../services/store';
+import { NotificationCenter } from './NotificationCenter';
 
 interface NavbarProps {
   role: UserRole;
@@ -78,8 +79,11 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Mode Selector & Concurrency Test Trigger */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        {/* Mode Selector, Notifications & Concurrency Test Trigger */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* Notification Center (HU-89 & HU-90) */}
+          <NotificationCenter />
+
           {/* Concurrency CC-1 Test Button */}
           <button
             onClick={handleRunCC1Test}
@@ -109,7 +113,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 background: role === 'customer' ? undefined : 'transparent'
               }}
             >
-              <Users size={15} /> Cliente (HU-17)
+              <Users size={15} /> Cliente (HU-17/18)
             </button>
             <button
               onClick={() => setRole('establishment')}
@@ -120,7 +124,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 background: role === 'establishment' ? undefined : 'transparent'
               }}
             >
-              <Store size={15} /> Negocio (HU-26)
+              <Store size={15} /> Negocio (HU-68/69)
             </button>
           </div>
 
