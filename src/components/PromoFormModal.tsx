@@ -1,0 +1,264 @@
+import React, { useState } from 'react';
+import { Establishment, Zone } from '../types';
+import { storeService } from '../services/store';
+import { Sparkles, Clock, Flame, Ticket, X, CheckCircle2, AlertCircle } from 'lucide-react';
+
+interface PromoFormModalProps {
+  establishment: Establishment;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+export const PromoFormModal: React.FC<PromoFormModalProps> = ({
+  establishment,
+  onClose,
+  onSuccess
+}) => {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [discountPercentage, setDiscountPercentage] = useState<number | ''>(30);
+  const [discountCode, setDiscountCode] = useState(`${establishment.name.substring(0, 4).toUpperCase()}${Math.floor(10 + Math.random() * 90)}`);
+  const [initialStock, setInitialStock] = useState<number | ''>(10);
+  const [durationHours, setDurationHours] = useState<number>(3); // Expire in X hours
+
+  // Validation states
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    if (!title.trim()) {
+      newErrors.title = 'El título de la promoción es un campo obligatorio.';
+    }
+
+    if (!description.trim()) {
+      newErrors.description = 'La descripción de los beneficios es obligatoria.';
+    }
+
+    if (!discountCode.trim()) {
+      newErrors.discountCode = 'El código de descuento es obligatorio para los cupones.';
+    }
+
+    if (initialStock === '' || Number(initialStock) <= 0) {
+      newErrors.initialStock = 'El stock/cupos disponibles debe ser un número entero mayor a 0.';
+    }
+
+    if (discountPercentage !== '' && (Number(discountPercentage) < 0 || Number(discountPercentage) > 100)) {
+      newErrors.discountPercentage = 'El porcentaje debe estar entre 0% y 100%.';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setServerError(null);
+
+    if (!validateForm()) {
+      return;
+    }
+
+    const expiresAt = new Date(Date.now() + durationHours * 3600 * 1000).toISOString();
+
+    // Call Store Service to persist (HU-26)
+    const result = storeService.addPromotion({
+      establishmentId: establishment.id,
+      title: title.trim(),
+      description: description.trim(),
+      discountPercentage: discountPercentage === '' ? undefined : Number(discountPercentage),
+      discountCode: discountCode.trim().toUpperCase(),
+      initialStock: Number(initialStock),
+      expiresAt,
+      zone: establishment.zone as Zone
+    });
+
+    if (result.success) {
+      setSuccessMessage(`¡Promoción "${title}" lanzada exitosamente a usuarios cercanos en ${establishment.zone}!`);
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+      }, 1200);
+    } else {
+      setServerError(result.error || 'Error al publicar la promoción.');
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="modal-header">
+          <div>
+            <h3 style={{ fontSize: '1.25rem', color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Sparkles color="#fbbf24" size={20} /> Lanzar Promoción Relámpago (HU-26)
+            </h3>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
+              Emisor autorizado: <strong style={{ color: '#fbbf24' }}>{establishment.name}</strong> ({establishment.zone})
+            </p>
+          </div>
+          <button 
+            onClick={onClose} 
+            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Success Feedback */}
+        {successMessage ? (
+          <div className="modal-body" style={{ textAlign: 'center', padding: '40px 24px' }}>
+            <CheckCircle2 size={48} color="#fbbf24" style={{ marginBottom: '16px' }} />
+            <h4 style={{ fontSize: '1.2rem', color: '#fff', marginBottom: '8px' }}>Promoción Activada</h4>
+            <p style={{ color: 'var(--text-muted)' }}>{successMessage}</p>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <div className="modal-body">
+              {serverError && (
+                <div style={{
+                  padding: '12px',
+                  background: 'rgba(244, 63, 94, 0.15)',
+                  border: '1px solid var(--rose-danger)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: '#fda4af',
+                  fontSize: '0.875rem',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <AlertCircle size={16} />
+                  <span>{serverError}</span>
+                </div>
+              )}
+
+              {/* Title */}
+              <div className="form-group">
+                <label className="form-label">
+                  Título de la Oferta / Promoción <span className="required">*</span>
+                </label>
+                <input
+                  type="text"
+                  className={`form-control ${errors.title ? 'error' : ''}`}
+                  placeholder="ej. 2x1 en Bebidas de Autor de 6 a 9 PM"
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                />
+                {errors.title && <span className="error-text">{errors.title}</span>}
+              </div>
+
+              {/* Description */}
+              <div className="form-group">
+                <label className="form-label">
+                  Detalles y Condiciones <span className="required">*</span>
+                </label>
+                <textarea
+                  className={`form-control ${errors.description ? 'error' : ''}`}
+                  rows={2}
+                  placeholder="Aplica mostrando este cupón al llegar al establecimiento..."
+                  value={description}
+                  onChange={e => setDescription(e.target.value)}
+                />
+                {errors.description && <span className="error-text">{errors.description}</span>}
+              </div>
+
+              {/* Discount & Code Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">
+                    % Descuento Destacado
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    className={`form-control ${errors.discountPercentage ? 'error' : ''}`}
+                    placeholder="ej. 50"
+                    value={discountPercentage}
+                    onChange={e => setDiscountPercentage(e.target.value === '' ? '' : Number(e.target.value))}
+                  />
+                  {errors.discountPercentage && <span className="error-text">{errors.discountPercentage}</span>}
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">
+                    <Ticket size={12} /> Código de Cupón <span className="required">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className={`form-control ${errors.discountCode ? 'error' : ''}`}
+                    placeholder="ej. GATO2X1"
+                    value={discountCode}
+                    onChange={e => setDiscountCode(e.target.value.toUpperCase())}
+                  />
+                  {errors.discountCode && <span className="error-text">{errors.discountCode}</span>}
+                </div>
+              </div>
+
+              {/* Stock & Expiration Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">
+                    <Flame size={12} /> Stock / Cupos Limitados <span className="required">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    className={`form-control ${errors.initialStock ? 'error' : ''}`}
+                    placeholder="ej. 15"
+                    value={initialStock}
+                    onChange={e => setInitialStock(e.target.value === '' ? '' : Number(e.target.value))}
+                  />
+                  {errors.initialStock && <span className="error-text">{errors.initialStock}</span>}
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">
+                    <Clock size={12} /> Duración de la Oferta <span className="required">*</span>
+                  </label>
+                  <select
+                    className="form-control"
+                    value={durationHours}
+                    onChange={e => setDurationHours(Number(e.target.value))}
+                  >
+                    <option value={1}>1 hora (Relámpago)</option>
+                    <option value={2}>2 horas</option>
+                    <option value={3}>3 horas</option>
+                    <option value={6}>6 horas</option>
+                    <option value={12}>12 horas</option>
+                    <option value={24}>24 horas (Todo el día)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{
+                marginTop: '8px',
+                padding: '10px 12px',
+                background: 'rgba(245, 158, 11, 0.1)',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid rgba(245, 158, 11, 0.2)',
+                fontSize: '0.8rem',
+                color: '#fbbf24'
+              }}>
+                ⚡ Esta promoción se difundirá a los usuarios navegando activamente en <strong>{establishment.zone}</strong>.
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={onClose}>
+                Cancelar
+              </button>
+              <button type="submit" className="btn btn-primary" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>
+                <Sparkles size={16} /> Publicar Promoción
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+};
