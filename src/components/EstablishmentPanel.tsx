@@ -5,7 +5,7 @@ import { EventList } from './EventList';
 import { PromoList } from './PromoList';
 import { EventFormModal } from './EventFormModal';
 import { PromoFormModal } from './PromoFormModal';
-import { Store, Calendar, Sparkles, Plus, Users, MapPin, CheckCircle, ShieldCheck } from 'lucide-react';
+import { Calendar, Sparkles, Plus, MapPin, ShieldCheck } from 'lucide-react';
 
 interface EstablishmentPanelProps {
   establishment: Establishment;
@@ -16,12 +16,15 @@ export const EstablishmentPanel: React.FC<EstablishmentPanelProps> = ({ establis
   const [showEventModal, setShowEventModal] = useState<boolean>(false);
   const [showPromoModal, setShowPromoModal] = useState<boolean>(false);
 
+  const [editingEvent, setEditingEvent] = useState<PlanazoEvent | null>(null);
+  const [editingPromo, setEditingPromo] = useState<Promotion | null>(null);
+
   const [eventsCount, setEventsCount] = useState<number>(0);
   const [promosCount, setPromosCount] = useState<number>(0);
 
   const updateCounts = () => {
     const evts = storeService.getEvents(establishment.id);
-    const prms = storeService.getPromotions(establishment.id, undefined, true);
+    const prms = storeService.getPromotions(establishment.id, undefined, false);
     setEventsCount(evts.length);
     setPromosCount(prms.length);
   };
@@ -31,6 +34,16 @@ export const EstablishmentPanel: React.FC<EstablishmentPanelProps> = ({ establis
     const unsubscribe = storeService.subscribe(updateCounts);
     return () => unsubscribe();
   }, [establishment.id]);
+
+  const handleStartEditEvent = (evt: PlanazoEvent) => {
+    setEditingEvent(evt);
+    setShowEventModal(true);
+  };
+
+  const handleStartEditPromo = (promo: Promotion) => {
+    setEditingPromo(promo);
+    setShowPromoModal(true);
+  };
 
   return (
     <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -109,7 +122,7 @@ export const EstablishmentPanel: React.FC<EstablishmentPanelProps> = ({ establis
             borderRadius: 'var(--radius-md)',
             textAlign: 'center'
           }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Promos Vigentes</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Promos Totales</div>
             <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fbbf24' }}>
               {promosCount}
             </div>
@@ -130,25 +143,25 @@ export const EstablishmentPanel: React.FC<EstablishmentPanelProps> = ({ establis
             className={`btn ${activeTab === 'events' ? 'btn-primary' : 'btn-secondary'}`}
             onClick={() => setActiveTab('events')}
           >
-            <Calendar size={18} /> Publicación & Gestión de Eventos (HU-23) ({eventsCount})
+            <Calendar size={18} /> Publicación & Gestión de Eventos (HU-68) ({eventsCount})
           </button>
           <button
             className={`btn ${activeTab === 'promos' ? 'btn-primary' : 'btn-secondary'}`}
             onClick={() => setActiveTab('promos')}
             style={activeTab === 'promos' ? { background: 'linear-gradient(135deg, #f59e0b, #d97706)' } : undefined}
           >
-            <Sparkles size={18} /> Publicación & Gestión de Promociones (HU-26) ({promosCount})
+            <Sparkles size={18} /> Publicación & Gestión de Promociones (HU-69) ({promosCount})
           </button>
         </div>
 
         {/* Action button based on active tab */}
         {activeTab === 'events' ? (
-          <button className="btn btn-primary" onClick={() => setShowEventModal(true)}>
-            <Plus size={18} /> Publicar Evento (HU-23)
+          <button className="btn btn-primary" onClick={() => { setEditingEvent(null); setShowEventModal(true); }}>
+            <Plus size={18} /> Publicar Evento (HU-68)
           </button>
         ) : (
-          <button className="btn btn-primary" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }} onClick={() => setShowPromoModal(true)}>
-            <Plus size={18} /> Lanzar Promoción (HU-26)
+          <button className="btn btn-primary" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }} onClick={() => { setEditingPromo(null); setShowPromoModal(true); }}>
+            <Plus size={18} /> Lanzar Promoción (HU-69)
           </button>
         )}
       </div>
@@ -158,32 +171,36 @@ export const EstablishmentPanel: React.FC<EstablishmentPanelProps> = ({ establis
         <EventList
           establishment={establishment}
           isEstablishmentView={true}
-          onOpenCreateEvent={() => setShowEventModal(true)}
+          onOpenCreateEvent={() => { setEditingEvent(null); setShowEventModal(true); }}
+          onEditEvent={handleStartEditEvent}
         />
       ) : (
         <PromoList
           establishment={establishment}
           isEstablishmentView={true}
-          onOpenCreatePromo={() => setShowPromoModal(true)}
+          onOpenCreatePromo={() => { setEditingPromo(null); setShowPromoModal(true); }}
+          onEditPromo={handleStartEditPromo}
         />
       )}
 
-      {/* HU-23 Modal */}
+      {/* HU-23 / HU-68 Event Modal */}
       {showEventModal && (
         <EventFormModal
           establishment={establishment}
-          onClose={() => setShowEventModal(false)}
+          editingEvent={editingEvent}
+          onClose={() => { setShowEventModal(false); setEditingEvent(null); }}
           onSuccess={() => {
             updateCounts();
           }}
         />
       )}
 
-      {/* HU-26 Modal */}
+      {/* HU-26 / HU-69 Promo Modal */}
       {showPromoModal && (
         <PromoFormModal
           establishment={establishment}
-          onClose={() => setShowPromoModal(false)}
+          editingPromo={editingPromo}
+          onClose={() => { setShowPromoModal(false); setEditingPromo(null); }}
           onSuccess={() => {
             updateCounts();
           }}

@@ -1,30 +1,31 @@
-import React, { useState } from 'react';
-import { Establishment, EventCategory } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Establishment, EventCategory, PlanazoEvent } from '../types';
 import { storeService } from '../services/store';
 import { Calendar, Clock, Users, DollarSign, Image, Tag, X, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface EventFormModalProps {
   establishment: Establishment;
+  editingEvent?: PlanazoEvent | null;
   onClose: () => void;
   onSuccess: () => void;
 }
 
 export const EventFormModal: React.FC<EventFormModalProps> = ({
   establishment,
+  editingEvent,
   onClose,
   onSuccess
 }) => {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<EventCategory>('Música en Vivo');
-  const [date, setDate] = useState('');
-  const [startTime, setStartTime] = useState('20:00');
-  const [endTime, setEndTime] = useState('00:00');
-  const [maxCapacity, setMaxCapacity] = useState<number | ''>(50);
-  const [price, setPrice] = useState<number | ''>(0);
-  const [imageUrl, setImageUrl] = useState('');
+  const [title, setTitle] = useState(editingEvent ? editingEvent.title : '');
+  const [description, setDescription] = useState(editingEvent ? editingEvent.description : '');
+  const [category, setCategory] = useState<EventCategory>(editingEvent ? editingEvent.category : 'Música en Vivo');
+  const [date, setDate] = useState(editingEvent ? editingEvent.date : '');
+  const [startTime, setStartTime] = useState(editingEvent ? editingEvent.startTime : '20:00');
+  const [endTime, setEndTime] = useState(editingEvent ? editingEvent.endTime : '00:00');
+  const [maxCapacity, setMaxCapacity] = useState<number | ''>(editingEvent ? editingEvent.maxCapacity : 50);
+  const [price, setPrice] = useState<number | ''>(editingEvent ? editingEvent.price : 0);
+  const [imageUrl, setImageUrl] = useState(editingEvent?.imageUrl || '');
 
-  // Validation state
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -82,39 +83,63 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
       return;
     }
 
-    // Call Store Service to persist (HU-23)
-    const result = storeService.addEvent({
-      establishmentId: establishment.id,
-      title: title.trim(),
-      description: description.trim(),
-      category,
-      date,
-      startTime,
-      endTime,
-      maxCapacity: Number(maxCapacity),
-      price: Number(price),
-      imageUrl: imageUrl.trim() || undefined
-    });
+    if (editingEvent) {
+      // HU-68 Update existing event
+      const result = storeService.updateEvent(editingEvent.id, {
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        date,
+        startTime,
+        endTime,
+        maxCapacity: Number(maxCapacity),
+        price: Number(price),
+        imageUrl: imageUrl.trim() || undefined
+      });
 
-    if (result.success) {
-      setSuccessMessage(`¡Evento "${title}" publicado exitosamente para ${establishment.name}!`);
-      setTimeout(() => {
-        onSuccess();
-        onClose();
-      }, 1200);
+      if (result.success) {
+        setSuccessMessage(`¡Evento "${title}" actualizado correctamente!`);
+        setTimeout(() => {
+          onSuccess();
+          onClose();
+        }, 1200);
+      } else {
+        setServerError(result.error || 'Error al actualizar el evento.');
+      }
     } else {
-      setServerError(result.error || 'Error al publicar el evento.');
+      // HU-23 & HU-68 Create new event
+      const result = storeService.addEvent({
+        establishmentId: establishment.id,
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        date,
+        startTime,
+        endTime,
+        maxCapacity: Number(maxCapacity),
+        price: Number(price),
+        imageUrl: imageUrl.trim() || undefined
+      });
+
+      if (result.success) {
+        setSuccessMessage(`¡Evento "${title}" publicado exitosamente para ${establishment.name}!`);
+        setTimeout(() => {
+          onSuccess();
+          onClose();
+        }, 1200);
+      } else {
+        setServerError(result.error || 'Error al publicar el evento.');
+      }
     }
   };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={e => e.stopPropagation()}>
-        {/* Header */}
         <div className="modal-header">
           <div>
             <h3 style={{ fontSize: '1.25rem', color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Calendar color="var(--emerald-light)" size={20} /> Publicar Nuevo Evento (HU-23)
+              <Calendar color="var(--emerald-light)" size={20} /> {editingEvent ? 'Editar Evento (HU-68)' : 'Publicar Nuevo Evento (HU-23 / HU-68)'}
             </h3>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
               Establecimiento autorizador: <strong style={{ color: 'var(--emerald-light)' }}>{establishment.name}</strong>
@@ -128,11 +153,10 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
           </button>
         </div>
 
-        {/* Success Message Banner */}
         {successMessage ? (
           <div className="modal-body" style={{ textAlign: 'center', padding: '40px 24px' }}>
             <CheckCircle2 size={48} color="var(--emerald-light)" style={{ marginBottom: '16px' }} />
-            <h4 style={{ fontSize: '1.2rem', color: '#fff', marginBottom: '8px' }}>Confirmación Recibida</h4>
+            <h4 style={{ fontSize: '1.2rem', color: '#fff', marginBottom: '8px' }}>Operación Guardada</h4>
             <p style={{ color: 'var(--text-muted)' }}>{successMessage}</p>
           </div>
         ) : (
@@ -156,7 +180,6 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
                 </div>
               )}
 
-              {/* Title */}
               <div className="form-group">
                 <label className="form-label">
                   Título del Evento <span className="required">*</span>
@@ -171,7 +194,6 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
                 {errors.title && <span className="error-text">{errors.title}</span>}
               </div>
 
-              {/* Category */}
               <div className="form-group">
                 <label className="form-label">
                   Categoría del Evento <span className="required">*</span>
@@ -187,7 +209,6 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
                 </select>
               </div>
 
-              {/* Description */}
               <div className="form-group">
                 <label className="form-label">
                   Descripción Detallada <span className="required">*</span>
@@ -202,7 +223,6 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
                 {errors.description && <span className="error-text">{errors.description}</span>}
               </div>
 
-              {/* Date & Hours Grid */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                 <div className="form-group">
                   <label className="form-label">
@@ -213,7 +233,6 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
                     className={`form-control ${errors.date ? 'error' : ''}`}
                     value={date}
                     onChange={e => setDate(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
                   />
                   {errors.date && <span className="error-text">{errors.date}</span>}
                 </div>
@@ -245,7 +264,6 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
                 </div>
               </div>
 
-              {/* Capacity & Price Grid */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div className="form-group">
                   <label className="form-label">
@@ -264,7 +282,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
 
                 <div className="form-group">
                   <label className="form-label">
-                    <DollarSign size={12} /> Precio de Entradas ($ COP) <span className="required">*</span>
+                    <DollarSign size={12} /> Precio ($ COP) <span className="required">*</span>
                   </label>
                   <input
                     type="number"
@@ -279,7 +297,6 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
                 </div>
               </div>
 
-              {/* Image URL Optional */}
               <div className="form-group">
                 <label className="form-label">
                   <Image size={12} /> URL Imagen promocional (Opcional)
@@ -294,13 +311,12 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
               </div>
             </div>
 
-            {/* Footer Actions */}
             <div className="modal-footer">
               <button type="button" className="btn btn-secondary" onClick={onClose}>
                 Cancelar
               </button>
               <button type="submit" className="btn btn-primary">
-                <Tag size={16} /> Publicar Evento
+                <Tag size={16} /> {editingEvent ? 'Guardar Cambios' : 'Publicar Evento'}
               </button>
             </div>
           </form>

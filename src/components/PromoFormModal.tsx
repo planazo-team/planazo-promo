@@ -1,27 +1,28 @@
 import React, { useState } from 'react';
-import { Establishment, Zone } from '../types';
+import { Establishment, Zone, Promotion } from '../types';
 import { storeService } from '../services/store';
 import { Sparkles, Clock, Flame, Ticket, X, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface PromoFormModalProps {
   establishment: Establishment;
+  editingPromo?: Promotion | null;
   onClose: () => void;
   onSuccess: () => void;
 }
 
 export const PromoFormModal: React.FC<PromoFormModalProps> = ({
   establishment,
+  editingPromo,
   onClose,
   onSuccess
 }) => {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [discountPercentage, setDiscountPercentage] = useState<number | ''>(30);
-  const [discountCode, setDiscountCode] = useState(`${establishment.name.substring(0, 4).toUpperCase()}${Math.floor(10 + Math.random() * 90)}`);
-  const [initialStock, setInitialStock] = useState<number | ''>(10);
-  const [durationHours, setDurationHours] = useState<number>(3); // Expire in X hours
+  const [title, setTitle] = useState(editingPromo ? editingPromo.title : '');
+  const [description, setDescription] = useState(editingPromo ? editingPromo.description : '');
+  const [discountPercentage, setDiscountPercentage] = useState<number | ''>(editingPromo?.discountPercentage ?? 30);
+  const [discountCode, setDiscountCode] = useState(editingPromo ? editingPromo.discountCode : `${establishment.name.substring(0, 4).toUpperCase()}${Math.floor(10 + Math.random() * 90)}`);
+  const [initialStock, setInitialStock] = useState<number | ''>(editingPromo ? editingPromo.initialStock : 10);
+  const [durationHours, setDurationHours] = useState<number>(3);
 
-  // Validation states
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -61,39 +62,60 @@ export const PromoFormModal: React.FC<PromoFormModalProps> = ({
       return;
     }
 
-    const expiresAt = new Date(Date.now() + durationHours * 3600 * 1000).toISOString();
+    if (editingPromo) {
+      // HU-69 Update existing promo
+      const result = storeService.updatePromotion(editingPromo.id, {
+        title: title.trim(),
+        description: description.trim(),
+        discountPercentage: discountPercentage === '' ? undefined : Number(discountPercentage),
+        discountCode: discountCode.trim().toUpperCase(),
+        initialStock: Number(initialStock),
+        currentStock: Number(initialStock) // Reset current stock if initial stock changed
+      });
 
-    // Call Store Service to persist (HU-26)
-    const result = storeService.addPromotion({
-      establishmentId: establishment.id,
-      title: title.trim(),
-      description: description.trim(),
-      discountPercentage: discountPercentage === '' ? undefined : Number(discountPercentage),
-      discountCode: discountCode.trim().toUpperCase(),
-      initialStock: Number(initialStock),
-      expiresAt,
-      zone: establishment.zone as Zone
-    });
-
-    if (result.success) {
-      setSuccessMessage(`¡Promoción "${title}" lanzada exitosamente a usuarios cercanos en ${establishment.zone}!`);
-      setTimeout(() => {
-        onSuccess();
-        onClose();
-      }, 1200);
+      if (result.success) {
+        setSuccessMessage(`¡Promoción "${title}" actualizada correctamente!`);
+        setTimeout(() => {
+          onSuccess();
+          onClose();
+        }, 1200);
+      } else {
+        setServerError(result.error || 'Error al actualizar la promoción.');
+      }
     } else {
-      setServerError(result.error || 'Error al publicar la promoción.');
+      // HU-26 Create new promo
+      const expiresAt = new Date(Date.now() + durationHours * 3600 * 1000).toISOString();
+
+      const result = storeService.addPromotion({
+        establishmentId: establishment.id,
+        title: title.trim(),
+        description: description.trim(),
+        discountPercentage: discountPercentage === '' ? undefined : Number(discountPercentage),
+        discountCode: discountCode.trim().toUpperCase(),
+        initialStock: Number(initialStock),
+        expiresAt,
+        zone: establishment.zone as Zone
+      });
+
+      if (result.success) {
+        setSuccessMessage(`¡Promoción "${title}" lanzada exitosamente a usuarios cercanos en ${establishment.zone}!`);
+        setTimeout(() => {
+          onSuccess();
+          onClose();
+        }, 1200);
+      } else {
+        setServerError(result.error || 'Error al publicar la promoción.');
+      }
     }
   };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={e => e.stopPropagation()}>
-        {/* Header */}
         <div className="modal-header">
           <div>
             <h3 style={{ fontSize: '1.25rem', color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Sparkles color="#fbbf24" size={20} /> Lanzar Promoción Relámpago (HU-26)
+              <Sparkles color="#fbbf24" size={20} /> {editingPromo ? 'Editar Promoción (HU-69)' : 'Lanzar Promoción Relámpago (HU-26 / HU-69)'}
             </h3>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
               Emisor autorizado: <strong style={{ color: '#fbbf24' }}>{establishment.name}</strong> ({establishment.zone})
@@ -107,11 +129,10 @@ export const PromoFormModal: React.FC<PromoFormModalProps> = ({
           </button>
         </div>
 
-        {/* Success Feedback */}
         {successMessage ? (
           <div className="modal-body" style={{ textAlign: 'center', padding: '40px 24px' }}>
             <CheckCircle2 size={48} color="#fbbf24" style={{ marginBottom: '16px' }} />
-            <h4 style={{ fontSize: '1.2rem', color: '#fff', marginBottom: '8px' }}>Promoción Activada</h4>
+            <h4 style={{ fontSize: '1.2rem', color: '#fff', marginBottom: '8px' }}>Operación Guardada</h4>
             <p style={{ color: 'var(--text-muted)' }}>{successMessage}</p>
           </div>
         ) : (
@@ -135,7 +156,6 @@ export const PromoFormModal: React.FC<PromoFormModalProps> = ({
                 </div>
               )}
 
-              {/* Title */}
               <div className="form-group">
                 <label className="form-label">
                   Título de la Oferta / Promoción <span className="required">*</span>
@@ -150,7 +170,6 @@ export const PromoFormModal: React.FC<PromoFormModalProps> = ({
                 {errors.title && <span className="error-text">{errors.title}</span>}
               </div>
 
-              {/* Description */}
               <div className="form-group">
                 <label className="form-label">
                   Detalles y Condiciones <span className="required">*</span>
@@ -165,7 +184,6 @@ export const PromoFormModal: React.FC<PromoFormModalProps> = ({
                 {errors.description && <span className="error-text">{errors.description}</span>}
               </div>
 
-              {/* Discount & Code Grid */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div className="form-group">
                   <label className="form-label">
@@ -198,7 +216,6 @@ export const PromoFormModal: React.FC<PromoFormModalProps> = ({
                 </div>
               </div>
 
-              {/* Stock & Expiration Grid */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div className="form-group">
                   <label className="form-label">
@@ -215,45 +232,34 @@ export const PromoFormModal: React.FC<PromoFormModalProps> = ({
                   {errors.initialStock && <span className="error-text">{errors.initialStock}</span>}
                 </div>
 
-                <div className="form-group">
-                  <label className="form-label">
-                    <Clock size={12} /> Duración de la Oferta <span className="required">*</span>
-                  </label>
-                  <select
-                    className="form-control"
-                    value={durationHours}
-                    onChange={e => setDurationHours(Number(e.target.value))}
-                  >
-                    <option value={1}>1 hora (Relámpago)</option>
-                    <option value={2}>2 horas</option>
-                    <option value={3}>3 horas</option>
-                    <option value={6}>6 horas</option>
-                    <option value={12}>12 horas</option>
-                    <option value={24}>24 horas (Todo el día)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div style={{
-                marginTop: '8px',
-                padding: '10px 12px',
-                background: 'rgba(245, 158, 11, 0.1)',
-                borderRadius: 'var(--radius-sm)',
-                border: '1px solid rgba(245, 158, 11, 0.2)',
-                fontSize: '0.8rem',
-                color: '#fbbf24'
-              }}>
-                ⚡ Esta promoción se difundirá a los usuarios navegando activamente en <strong>{establishment.zone}</strong>.
+                {!editingPromo && (
+                  <div className="form-group">
+                    <label className="form-label">
+                      <Clock size={12} /> Duración de la Oferta <span className="required">*</span>
+                    </label>
+                    <select
+                      className="form-control"
+                      value={durationHours}
+                      onChange={e => setDurationHours(Number(e.target.value))}
+                    >
+                      <option value={1}>1 hora (Relámpago)</option>
+                      <option value={2}>2 horas</option>
+                      <option value={3}>3 horas</option>
+                      <option value={6}>6 horas</option>
+                      <option value={12}>12 horas</option>
+                      <option value={24}>24 horas (Todo el día)</option>
+                    </select>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Footer */}
             <div className="modal-footer">
               <button type="button" className="btn btn-secondary" onClick={onClose}>
                 Cancelar
               </button>
               <button type="submit" className="btn btn-primary" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>
-                <Sparkles size={16} /> Publicar Promoción
+                <Sparkles size={16} /> {editingPromo ? 'Guardar Cambios' : 'Publicar Promoción'}
               </button>
             </div>
           </form>

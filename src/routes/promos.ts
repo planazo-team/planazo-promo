@@ -3,7 +3,7 @@ import { promoDomainService } from '../services/promoService';
 
 export const promoRouter = Router();
 
-// GET /promos — Consultar promociones (HU-17)
+// GET /promos — Consultar promociones (HU-17 / HU-69)
 promoRouter.get('/', (req: Request, res: Response) => {
   const zone = req.query.zone as string | undefined;
   const placeId = req.query.placeId as string | undefined;
@@ -13,7 +13,13 @@ promoRouter.get('/', (req: Request, res: Response) => {
   res.json(promos);
 });
 
-// GET /promos/events — Consultar el log de eventos de promociones (§6.4)
+// GET /promos/notifications — Consultar notificaciones en vivo (HU-89 / HU-90)
+promoRouter.get('/notifications', (_req: Request, res: Response) => {
+  const notifications = promoDomainService.getNotifications();
+  res.json(notifications);
+});
+
+// GET /promos/events — Log de eventos de promociones (§6.4)
 promoRouter.get('/events', (_req: Request, res: Response) => {
   const logs = promoDomainService.getEventLog();
   res.json(logs);
@@ -22,11 +28,11 @@ promoRouter.get('/events', (_req: Request, res: Response) => {
 // GET /promos/place/:placeId — Consultar promociones de un establecimiento (HU-17)
 promoRouter.get('/place/:placeId', (req: Request, res: Response) => {
   const { placeId } = req.params;
-  const promos = promoDomainService.getPromotions({ placeId, activeOnly: true });
+  const promos = promoDomainService.getPromotions({ placeId, activeOnly: false });
   res.json(promos);
 });
 
-// GET /promos/:id — Obtenes promoción específica
+// GET /promos/:id — Detalle de promoción
 promoRouter.get('/:id', (req: Request, res: Response) => {
   const { id } = req.params;
   const promo = promoDomainService.getPromotionById(id);
@@ -41,13 +47,11 @@ promoRouter.get('/:id', (req: Request, res: Response) => {
   res.json(promo);
 });
 
-// POST /promos — Publicar nueva promoción (HU-26)
-// §6.2: Lee identidad en x-user-id, x-user-role, x-user-place-id
+// POST /promos — Publicar nueva promoción (HU-26 / HU-69)
 promoRouter.post('/', (req: Request, res: Response) => {
-  const userRole = req.headers['x-user-role'] as string | undefined;
   const userPlaceId = req.headers['x-user-place-id'] as string | undefined;
 
-  const { establishmentId, zone, title, description, discountPercentage, discountCode, initialStock, expiresAt } = req.body;
+  const { establishmentId, zone, title, description, discountPercentage, discountCode, initialStock, expiresAt, placeName } = req.body;
 
   const targetPlaceId = establishmentId || userPlaceId;
   const targetZone = zone || 'Zona G';
@@ -65,7 +69,8 @@ promoRouter.post('/', (req: Request, res: Response) => {
     discountPercentage,
     discountCode,
     initialStock,
-    expiresAt
+    expiresAt,
+    placeName
   });
 
   if (!result.success) {
@@ -78,8 +83,37 @@ promoRouter.post('/', (req: Request, res: Response) => {
   res.status(201).json(result.promo);
 });
 
-// POST /promos/:id/claim — Reclamar cupón con decremento atómico (CC-1 & HU-17)
-// §6.3: Devuelve 409 Conflict si el stock está agotado
+// PUT /promos/:id — Editar promoción existente (HU-69)
+promoRouter.put('/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const result = promoDomainService.updatePromotion(id, req.body);
+
+  if (!result.success) {
+    return res.status(400).json({
+      code: 'UPDATE_FAILED',
+      message: result.error || 'Error al actualizar la promoción.'
+    });
+  }
+
+  res.json(result.promo);
+});
+
+// DELETE /promos/:id — Eliminar promoción (HU-69)
+promoRouter.delete('/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const deleted = promoDomainService.deletePromotion(id);
+
+  if (!deleted) {
+    return res.status(404).json({
+      code: 'PROMO_NOT_FOUND',
+      message: 'No se encontró la promoción a eliminar.'
+    });
+  }
+
+  res.json({ success: true, message: 'Promoción eliminada correctamente.' });
+});
+
+// POST /promos/:id/claim — Reclamar cupón con decremento atómico (CC-1)
 promoRouter.post('/:id/claim', async (req: Request, res: Response) => {
   const { id } = req.params;
   const userId = (req.headers['x-user-id'] as string) || 'u1';
@@ -99,10 +133,4 @@ promoRouter.post('/:id/claim', async (req: Request, res: Response) => {
     message: result.message,
     remainingStock: result.remainingStock
   });
-});
-
-// POST /promos/reset — Reiniciar datos semilla
-promoRouter.post('/reset', (_req: Request, res: Response) => {
-  promoDomainService.seed();
-  res.json({ message: 'Datos semilla de promociones reestablecidos.' });
 });

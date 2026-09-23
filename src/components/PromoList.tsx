@@ -1,27 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { Promotion, Establishment } from '../types';
 import { storeService } from '../services/store';
-import { Sparkles, Clock, Flame, Ticket, Info, CheckCircle2, AlertCircle, Copy } from 'lucide-react';
+import { Sparkles, Clock, Flame, Ticket, Info, CheckCircle2, AlertCircle, Edit, Trash2, Power } from 'lucide-react';
 
 interface PromoListProps {
   establishment?: Establishment;
   isEstablishmentView?: boolean;
   onOpenCreatePromo?: () => void;
+  onEditPromo?: (promo: Promotion) => void;
 }
 
 export const PromoList: React.FC<PromoListProps> = ({
   establishment,
   isEstablishmentView = false,
-  onOpenCreatePromo
+  onOpenCreatePromo,
+  onEditPromo
 }) => {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [filterZone, setFilterZone] = useState<string>('Todas');
-  const [showOnlyActive, setShowOnlyActive] = useState<boolean>(true);
+  const [showOnlyActive, setShowOnlyActive] = useState<boolean>(!isEstablishmentView);
 
-  // Claim Feedback Modal / Banner
   const [claimFeedback, setClaimFeedback] = useState<{ success: boolean; message: string; code?: string } | null>(null);
-
-  // Real-time ticking effect for countdowns
   const [now, setNow] = useState<number>(Date.now());
 
   useEffect(() => {
@@ -49,7 +48,17 @@ export const PromoList: React.FC<PromoListProps> = ({
     setClaimFeedback(result);
   };
 
-  // Helper to format remaining time
+  const handleDeletePromo = (id: string, title: string) => {
+    if (confirm(`¿Estás seguro de que deseas eliminar la promoción "${title}"?`)) {
+      storeService.deletePromotion(id);
+    }
+  };
+
+  const handleTogglePromoStatus = (promo: Promotion) => {
+    const nextStatus = promo.status === 'Activa' ? 'Pausada' : 'Activa';
+    storeService.updatePromotion(promo.id, { status: nextStatus });
+  };
+
   const getRemainingTimeText = (expiresAtIso: string): { text: string; isExpired: boolean } => {
     const diffMs = new Date(expiresAtIso).getTime() - now;
     if (diffMs <= 0) return { text: 'Expirada', isExpired: true };
@@ -67,7 +76,7 @@ export const PromoList: React.FC<PromoListProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* Header & Filter Controls (HU-17 CA2) */}
+      {/* Header & Filter Controls (HU-17 / HU-69) */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -83,10 +92,10 @@ export const PromoList: React.FC<PromoListProps> = ({
           <Sparkles color="#fbbf24" size={20} />
           <div>
             <h3 style={{ fontSize: '1.1rem', margin: 0, color: '#fff' }}>
-              Promociones Vigentes (HU-17)
+              {isEstablishmentView ? 'Gestión de Promociones (HU-69)' : 'Promociones Vigentes (HU-17)'}
             </h3>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
-              {establishment ? `Promociones lanzadas por ${establishment.name}` : 'Promociones con stock limitado en tiempo real'}
+              {establishment ? `Promociones de ${establishment.name}` : 'Promociones con stock en tiempo real'}
             </p>
           </div>
         </div>
@@ -157,10 +166,7 @@ export const PromoList: React.FC<PromoListProps> = ({
               )}
             </div>
           </div>
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={() => setClaimFeedback(null)}
-          >
+          <button className="btn btn-secondary btn-sm" onClick={() => setClaimFeedback(null)}>
             Cerrar
           </button>
         </div>
@@ -168,16 +174,15 @@ export const PromoList: React.FC<PromoListProps> = ({
 
       {/* Promotion Cards Grid */}
       {promotions.length === 0 ? (
-        /* HU-17 CA3: Informative state when no promotions are available */
         <div className="empty-state">
           <Info size={40} style={{ margin: '0 auto 12px auto', color: '#fbbf24' }} />
           <h4 style={{ fontSize: '1.1rem', color: '#fff', marginBottom: '6px' }}>
-            No hay promociones vigentes
+            No hay promociones disponibles
           </h4>
           <p style={{ fontSize: '0.875rem', maxWidth: '420px', margin: '0 auto 16px auto' }}>
             {establishment
-              ? `${establishment.name} no cuenta con promociones activas en este momento.`
-              : 'No se encontraron promociones con el filtro actual.'}
+              ? `${establishment.name} no cuenta con promociones activas actualmente.`
+              : 'No se encontraron promociones.'}
           </p>
           {isEstablishmentView && onOpenCreatePromo && (
             <button className="btn btn-primary btn-sm" onClick={onOpenCreatePromo}>
@@ -186,12 +191,11 @@ export const PromoList: React.FC<PromoListProps> = ({
           )}
         </div>
       ) : (
-        /* HU-17 CA1: Active & Filtered Promos */
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
           {promotions.map(promo => {
             const timeInfo = getRemainingTimeText(promo.expiresAt);
             const isOutOfStock = promo.currentStock <= 0;
-            const isInactive = isOutOfStock || timeInfo.isExpired;
+            const isInactive = isOutOfStock || timeInfo.isExpired || promo.status === 'Pausada';
             const percentageUsed = Math.round(((promo.initialStock - promo.currentStock) / promo.initialStock) * 100);
 
             return (
@@ -204,7 +208,9 @@ export const PromoList: React.FC<PromoListProps> = ({
                   flexDirection: 'column',
                   gap: '14px',
                   position: 'relative',
-                  border: promo.discountPercentage && promo.discountPercentage >= 50
+                  border: promo.status === 'Pausada'
+                    ? '1px dashed var(--text-dim)'
+                    : promo.discountPercentage && promo.discountPercentage >= 50
                     ? '1px solid rgba(245, 158, 11, 0.4)'
                     : undefined
                 }}
@@ -221,7 +227,9 @@ export const PromoList: React.FC<PromoListProps> = ({
                       {promo.title}
                     </h4>
                   </div>
-                  <span className="badge badge-cyan">{promo.zone}</span>
+                  <span className={`badge ${promo.status === 'Pausada' ? 'badge-amber' : 'badge-cyan'}`}>
+                    {promo.status === 'Pausada' ? 'PAUSADA' : promo.zone}
+                  </span>
                 </div>
 
                 <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', margin: 0 }}>
@@ -257,7 +265,7 @@ export const PromoList: React.FC<PromoListProps> = ({
                   </div>
                 </div>
 
-                {/* Footer Code & Action */}
+                {/* Footer Code & Action / Management (HU-69) */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto', paddingTop: '6px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <Ticket size={16} color="var(--text-muted)" />
@@ -266,7 +274,7 @@ export const PromoList: React.FC<PromoListProps> = ({
                     </code>
                   </div>
 
-                  {!isEstablishmentView && (
+                  {!isEstablishmentView ? (
                     <button
                       className={`btn btn-sm ${isInactive ? 'btn-secondary' : 'btn-primary'}`}
                       disabled={isInactive}
@@ -278,8 +286,37 @@ export const PromoList: React.FC<PromoListProps> = ({
                         opacity: isInactive ? 0.6 : 1
                       }}
                     >
-                      {isOutOfStock ? 'Agotada' : timeInfo.isExpired ? 'Expirada' : 'Reclamar Cupón'}
+                      {isOutOfStock ? 'Agotada' : promo.status === 'Pausada' ? 'Pausada' : timeInfo.isExpired ? 'Expirada' : 'Reclamar Cupón'}
                     </button>
+                  ) : (
+                    /* HU-69 Management Bar */
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => handleTogglePromoStatus(promo)}
+                        title={promo.status === 'Activa' ? 'Pausar promoción' : 'Reactivar promoción'}
+                      >
+                        <Power size={14} color={promo.status === 'Activa' ? 'var(--emerald-light)' : '#fbbf24'} />
+                      </button>
+
+                      {onEditPromo && (
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => onEditPromo(promo)}
+                          title="Editar promoción (HU-69)"
+                        >
+                          <Edit size={14} />
+                        </button>
+                      )}
+
+                      <button
+                        className="btn btn-danger btn-sm"
+                        onClick={() => handleDeletePromo(promo.id, promo.title)}
+                        title="Eliminar promoción (HU-69)"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>

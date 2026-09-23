@@ -1,10 +1,12 @@
-import { Establishment, PlanazoEvent, Promotion } from '../types';
+import { Establishment, PlanazoEvent, Promotion, AppNotification } from '../types';
 import { INITIAL_ESTABLISHMENTS, INITIAL_EVENTS, INITIAL_PROMOTIONS } from '../data/mockData';
+import { promoDomainService } from './promoService';
 
 const STORAGE_KEYS = {
   ESTABLISHMENTS: 'planazo_establishments_v1',
   EVENTS: 'planazo_events_v1',
-  PROMOTIONS: 'planazo_promotions_v1'
+  PROMOTIONS: 'planazo_promotions_v1',
+  NOTIFICATIONS: 'planazo_notifications_v1'
 };
 
 const BACKEND_URL = 'http://localhost:3002';
@@ -39,6 +41,21 @@ class StoreService {
     this.listeners.forEach(listener => listener());
   }
 
+  // --- NOTIFICATIONS (HU-89 & HU-90) ---
+  public getNotifications(): AppNotification[] {
+    return promoDomainService.getNotifications();
+  }
+
+  public markNotificationAsRead(id: string) {
+    promoDomainService.markNotificationAsRead(id);
+    this.notify();
+  }
+
+  public markAllNotificationsAsRead() {
+    promoDomainService.markAllNotificationsAsRead();
+    this.notify();
+  }
+
   // --- ESTABLISHMENTS ---
   public getEstablishments(): Establishment[] {
     try {
@@ -53,7 +70,7 @@ class StoreService {
     return this.getEstablishments().find(e => e.id === id);
   }
 
-  // --- EVENTS (HU-23 & HU-16) ---
+  // --- EVENTS (HU-23, HU-16, HU-68, HU-90) ---
   public getEvents(establishmentId?: string, category?: string, date?: string): PlanazoEvent[] {
     let events: PlanazoEvent[] = [];
     try {
@@ -102,47 +119,51 @@ class StoreService {
     const currentEvents = this.getEvents();
     const updated = [newEvent, ...currentEvents];
     localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(updated));
-    this.notify();
 
+    // Emit event notification (HU-90)
+    const venue = this.getEstablishmentById(eventData.establishmentId);
+    promoDomainService.addNotification({
+      title: `🎉 Nuevo Evento en ${venue?.zone || 'la ciudad'}`,
+      message: `${venue?.name || 'Un negocio'} programó: "${newEvent.title}" para el ${newEvent.date}`,
+      type: 'event',
+      zone: venue?.zone || 'Zona G',
+      placeName: venue?.name,
+      linkId: newEvent.id
+    });
+
+    this.notify();
     return { success: true, event: newEvent };
   }
 
-  // --- PROMOTIONS (HU-26 & HU-17 & CC-1) ---
+  // HU-68 Update Event
+  public updateEvent(id: string, data: Partial<PlanazoEvent>): { success: boolean; event?: PlanazoEvent; error?: string } {
+    const events = this.getEvents();
+    const index = events.findIndex(e => e.id === id);
+    if (index === -1) return { success: false, error: 'El evento no fue encontrado.' };
+
+    events[index] = { ...events[index], ...data };
+    localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(events));
+    this.notify();
+    return { success: true, event: events[index] };
+  }
+
+  // HU-68 Update Event Status
+  public updateEventStatus(id: string, status: PlanazoEvent['status']) {
+    return this.updateEvent(id, { status });
+  }
+
+  // HU-68 Delete Event
+  public deleteEvent(id: string): boolean {
+    const events = this.getEvents();
+    const filtered = events.filter(e => e.id !== id);
+    localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(filtered));
+    this.notify();
+    return true;
+  }
+
+  // --- PROMOTIONS (HU-26, HU-17, HU-69, HU-89) ---
   public getPromotions(establishmentId?: string, zone?: string, onlyActive = true): Promotion[] {
-    let promos: Promotion[] = [];
-    try {
-      const data = localStorage.getItem(STORAGE_KEYS.PROMOTIONS);
-      promos = data ? JSON.parse(data) : INITIAL_PROMOTIONS;
-    } catch {
-      promos = INITIAL_PROMOTIONS;
-    }
-
-    const now = new Date().getTime();
-
-    promos = promos.map(p => {
-      const expTime = new Date(p.expiresAt).getTime();
-      if (expTime <= now) {
-        return { ...p, status: 'Expirada' as const };
-      }
-      if (p.currentStock <= 0) {
-        return { ...p, status: 'Agotada' as const };
-      }
-      return p;
-    });
-
-    if (establishmentId) {
-      promos = promos.filter(p => p.establishmentId === establishmentId);
-    }
-
-    if (zone && zone !== 'Todas') {
-      promos = promos.filter(p => p.zone === zone);
-    }
-
-    if (onlyActive) {
-      promos = promos.filter(p => p.status === 'Activa');
-    }
-
-    return promos.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return promoDomainService.getPromotions({ placeId: establishmentId, zone, activeOnly: onlyActive });
   }
 
   public addPromotion(promoData: Omit<Promotion, 'id' | 'currentStock' | 'status' | 'createdAt'>): { success: boolean; promo?: Promotion; error?: string } {
@@ -153,31 +174,38 @@ class StoreService {
     if (!promoData.initialStock || promoData.initialStock <= 0) return { success: false, error: 'El número de cupos/stock debe ser mayor a 0.' };
     if (!promoData.expiresAt) return { success: false, error: 'La fecha de vencimiento es obligatoria.' };
 
-    const newPromo: Promotion = {
-      ...promoData,
-      id: `prm-${Date.now()}`,
-      currentStock: promoData.initialStock,
-      status: 'Activa',
-      createdAt: new Date().toISOString()
-    };
+    const venue = this.getEstablishmentById(promoData.establishmentId);
 
-    const currentPromos = this.getPromotions(undefined, undefined, false);
-    const updated = [newPromo, ...currentPromos];
-    localStorage.setItem(STORAGE_KEYS.PROMOTIONS, JSON.stringify(updated));
+    const result = promoDomainService.createPromotion(
+      promoData.establishmentId,
+      promoData.zone,
+      {
+        ...promoData,
+        placeName: venue?.name
+      }
+    );
 
-    // Try sync to backend service port 3002
-    fetch(`${BACKEND_URL}/promos`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-user-role': 'negocio',
-        'x-user-place-id': promoData.establishmentId
-      },
-      body: JSON.stringify(promoData)
-    }).catch(() => {});
+    if (result.success && result.promo) {
+      const current = this.getPromotions(undefined, undefined, false);
+      localStorage.setItem(STORAGE_KEYS.PROMOTIONS, JSON.stringify([result.promo, ...current]));
+      this.notify();
+    }
 
+    return result;
+  }
+
+  // HU-69 Update Promo
+  public updatePromotion(id: string, data: Partial<Promotion>): { success: boolean; promo?: Promotion; error?: string } {
+    const result = promoDomainService.updatePromotion(id, data);
     this.notify();
-    return { success: true, promo: newPromo };
+    return result;
+  }
+
+  // HU-69 Delete Promo
+  public deletePromotion(id: string): boolean {
+    const res = promoDomainService.deletePromotion(id);
+    this.notify();
+    return res;
   }
 
   public claimPromotion(promoId: string): { success: boolean; message: string; code?: string } {
@@ -207,7 +235,6 @@ class StoreService {
 
     localStorage.setItem(STORAGE_KEYS.PROMOTIONS, JSON.stringify(promos));
 
-    // Also claim on backend service 3002
     fetch(`${BACKEND_URL}/promos/${promoId}/claim`, {
       method: 'POST',
       headers: { 'x-user-id': 'u1' }
@@ -222,7 +249,7 @@ class StoreService {
     };
   }
 
-  // CC-1 Concurrency Test (50 parallel requests over stock = 3)
+  // CC-1 Concurrency Test
   public async runCC1BurstTest(targetPromoId?: string): Promise<{
     totalSent: number;
     successCount: number;
@@ -230,11 +257,9 @@ class StoreService {
     finalStock: number;
     passed: boolean;
   }> {
-    // 1. Create a promo with stock = 3
     const testPromoId = targetPromoId || `test-cc1-${Date.now()}`;
     const initialStock = 3;
 
-    // Create promo in service
     const createRes = await fetch(`${BACKEND_URL}/promos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-user-role': 'negocio', 'x-user-place-id': 'est-1' },
@@ -250,7 +275,6 @@ class StoreService {
     const createdPromo = await createRes.json();
     const activeId = createdPromo.id || testPromoId;
 
-    // 2. Fire 50 simultaneous HTTP POST requests to claim endpoint
     const burstSize = 50;
     const promises: Promise<Response>[] = [];
 
@@ -273,7 +297,6 @@ class StoreService {
       if (res.status === 409) rejected409Count++;
     }
 
-    // Check final stock
     const promoRes = await fetch(`${BACKEND_URL}/promos/${activeId}`);
     const finalPromo = await promoRes.json();
     const finalStock = finalPromo.currentStock ?? 0;
@@ -293,6 +316,7 @@ class StoreService {
     localStorage.setItem(STORAGE_KEYS.ESTABLISHMENTS, JSON.stringify(INITIAL_ESTABLISHMENTS));
     localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(INITIAL_EVENTS));
     localStorage.setItem(STORAGE_KEYS.PROMOTIONS, JSON.stringify(INITIAL_PROMOTIONS));
+    promoDomainService.seed();
     fetch(`${BACKEND_URL}/promos/reset`, { method: 'POST' }).catch(() => {});
     this.notify();
   }

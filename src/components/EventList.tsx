@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { PlanazoEvent, Establishment, EventCategory } from '../types';
+import { PlanazoEvent, Establishment } from '../types';
 import { storeService } from '../services/store';
-import { Calendar, Clock, Users, DollarSign, Filter, Sparkles, AlertCircle, Info } from 'lucide-react';
+import { Calendar, Clock, Users, Filter, Info, Edit, Trash2, CheckCircle2 } from 'lucide-react';
 
 interface EventListProps {
   establishment?: Establishment;
   isEstablishmentView?: boolean;
   onOpenCreateEvent?: () => void;
+  onEditEvent?: (event: PlanazoEvent) => void;
 }
 
 export const EventList: React.FC<EventListProps> = ({
   establishment,
   isEstablishmentView = false,
-  onOpenCreateEvent
+  onOpenCreateEvent,
+  onEditEvent
 }) => {
   const [events, setEvents] = useState<PlanazoEvent[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
@@ -49,13 +51,24 @@ export const EventList: React.FC<EventListProps> = ({
     return () => unsubscribe();
   }, [establishment?.id, selectedCategory, selectedDateFilter]);
 
+  const handleDeleteEvent = (id: string, title: string) => {
+    if (confirm(`¿Estás seguro de que deseas eliminar el evento "${title}"?`)) {
+      storeService.deleteEvent(id);
+    }
+  };
+
+  const handleToggleStatus = (evt: PlanazoEvent) => {
+    const nextStatus = evt.status === 'Programado' ? 'En Vivo' : evt.status === 'En Vivo' ? 'Finalizado' : 'Programado';
+    storeService.updateEventStatus(evt.id, nextStatus);
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* Header Controls & Filters (HU-16 CA2) */}
+      {/* Header Controls & Filters (HU-16 / HU-68) */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        justifyContent: 'Space-between',
         flexWrap: 'wrap',
         gap: '12px',
         background: 'rgba(17, 24, 39, 0.5)',
@@ -67,17 +80,16 @@ export const EventList: React.FC<EventListProps> = ({
           <Calendar color="var(--emerald-light)" size={20} />
           <div>
             <h3 style={{ fontSize: '1.1rem', margin: 0, color: '#fff' }}>
-              Eventos Disponibles (HU-16)
+              {isEstablishmentView ? 'Gestión de Eventos (HU-68)' : 'Eventos Disponibles (HU-16)'}
             </h3>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
-              {establishment ? `Eventos organizados por ${establishment.name}` : 'Todos los eventos en Bogotá'}
+              {establishment ? `Eventos de ${establishment.name}` : 'Todos los eventos'}
             </p>
           </div>
         </div>
 
         {/* Filters */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {/* Category Dropdown */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Filter size={14} color="var(--text-muted)" />
             <select
@@ -92,7 +104,6 @@ export const EventList: React.FC<EventListProps> = ({
             </select>
           </div>
 
-          {/* Date Selector */}
           <select
             className="form-control"
             value={selectedDateFilter}
@@ -103,7 +114,6 @@ export const EventList: React.FC<EventListProps> = ({
             <option value="hoy">Eventos de Hoy</option>
           </select>
 
-          {/* Action button if in establishment mode */}
           {isEstablishmentView && onOpenCreateEvent && (
             <button className="btn btn-primary btn-sm" onClick={onOpenCreateEvent}>
               + Publicar Evento
@@ -112,20 +122,17 @@ export const EventList: React.FC<EventListProps> = ({
         </div>
       </div>
 
-      {/* Events Grid / List */}
+      {/* Events Grid */}
       {events.length === 0 ? (
-        /* HU-16 CA3: Empty State Info */
         <div className="empty-state">
           <Info size={40} style={{ margin: '0 auto 12px auto', color: 'var(--cyan-accent)' }} />
           <h4 style={{ fontSize: '1.1rem', color: '#fff', marginBottom: '6px' }}>
-            No hay eventos disponibles
+            No hay eventos registrados
           </h4>
           <p style={{ fontSize: '0.875rem', maxWidth: '420px', margin: '0 auto 16px auto' }}>
-            {selectedCategory !== 'Todas' || selectedDateFilter !== 'todos'
-              ? 'No se encontraron eventos que coincidan con los filtros seleccionados. Intenta cambiar la categoría o la fecha.'
-              : establishment
-              ? `${establishment.name} aún no ha publicado eventos en la plataforma.`
-              : 'No hay eventos registrados en este momento.'}
+            {establishment
+              ? `${establishment.name} no cuenta con eventos en la categoría seleccionada.`
+              : 'No hay eventos disponibles actualmente.'}
           </p>
           {isEstablishmentView && onOpenCreateEvent && (
             <button className="btn btn-primary btn-sm" onClick={onOpenCreateEvent}>
@@ -134,7 +141,6 @@ export const EventList: React.FC<EventListProps> = ({
           )}
         </div>
       ) : (
-        /* HU-16 CA1: Render filtered results */
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
           {events.map(evt => {
             const isFull = evt.bookedCapacity >= evt.maxCapacity;
@@ -159,9 +165,14 @@ export const EventList: React.FC<EventListProps> = ({
                     gap: '6px'
                   }}>
                     <span className="badge badge-emerald">{evt.category}</span>
-                    {evt.status === 'En Vivo' && (
-                      <span className="badge badge-rose" style={{ animation: 'pulse 1.5s infinite' }}>● EN VIVO</span>
-                    )}
+                    <span
+                      className={`badge ${evt.status === 'En Vivo' ? 'badge-rose' : evt.status === 'Programado' ? 'badge-cyan' : 'badge-amber'}`}
+                      style={{ cursor: isEstablishmentView ? 'pointer' : 'default' }}
+                      onClick={() => isEstablishmentView && handleToggleStatus(evt)}
+                      title={isEstablishmentView ? 'Haz clic para cambiar estado' : undefined}
+                    >
+                      ● {evt.status.toUpperCase()}
+                    </span>
                   </div>
 
                   <div style={{
@@ -209,15 +220,45 @@ export const EventList: React.FC<EventListProps> = ({
                     </div>
                   </div>
 
-                  {/* Progress Bar */}
-                  <div style={{ width: '100%', background: 'rgba(255,255,255,0.1)', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
+                  {/* Management Action Bar (HU-68) */}
+                  {isEstablishmentView && (
                     <div style={{
-                      width: `${Math.min(100, (evt.bookedCapacity / evt.maxCapacity) * 100)}%`,
-                      height: '100%',
-                      background: isFull ? 'var(--rose-danger)' : 'linear-gradient(90deg, var(--emerald-primary), var(--cyan-accent))',
-                      transition: 'width 0.3s ease'
-                    }} />
-                  </div>
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingTop: '10px',
+                      borderTop: '1px solid var(--border-color)',
+                      marginTop: '6px'
+                    }}>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => handleToggleStatus(evt)}
+                        title="Cambiar estado del evento"
+                      >
+                        Estado: {evt.status}
+                      </button>
+
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        {onEditEvent && (
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => onEditEvent(evt)}
+                            title="Editar evento (HU-68)"
+                          >
+                            <Edit size={14} /> Editar
+                          </button>
+                        )}
+
+                        <button
+                          className="btn btn-danger btn-sm"
+                          onClick={() => handleDeleteEvent(evt.id, evt.title)}
+                          title="Eliminar evento (HU-68)"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             );
