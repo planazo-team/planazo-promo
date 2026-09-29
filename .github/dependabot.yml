@@ -1,48 +1,26 @@
 version: 2
 updates:
   - package-ecosystem: npm
- Los saltos de versión mayor se hacen a mano y probados: NestJS 12 es solo ESM
-directory: /
- Los saltos de versión mayor se hacen a mano y probados: NestJS 12 es solo ESM
-schedule:
- Los saltos de versión mayor se hacen a mano y probados: NestJS 12 es solo ESM
-  interval: weekly
- Los saltos de versión mayor se hacen a mano y probados: NestJS 12 es solo ESM
-  day: monday
- Los saltos de versión mayor se hacen a mano y probados: NestJS 12 es solo ESM
-open-pull-requests-limit: 5
- Los saltos de versión mayor se hacen a mano y probados: NestJS 12 es solo ESM
-# Un solo PR semanal con los parches y menores; menos ruido para revisar.
- Los saltos de versión mayor se hacen a mano y probados: NestJS 12 es solo ESM
-groups:
- Los saltos de versión mayor se hacen a mano y probados: NestJS 12 es solo ESM
-  dependencias:
- Los saltos de versión mayor se hacen a mano y probados: NestJS 12 es solo ESM
-    update-types: ["minor", "patch"]
- Los saltos de versión mayor se hacen a mano y probados: NestJS 12 es solo ESM
-# Los saltos de versión mayor se hacen a mano y probados: NestJS 12 es solo ESM
- Los saltos de versión mayor se hacen a mano y probados: NestJS 12 es solo ESM
-# y rompe Jest/ts-jest, y TypeScript 6/7 aún no los soportan ts-jest ni NestJS 11.
- Los saltos de versión mayor se hacen a mano y probados: NestJS 12 es solo ESM
-# Las correcciones de seguridad que no exijan un mayor siguen llegando.
- Los saltos de versión mayor se hacen a mano y probados: NestJS 12 es solo ESM
-ignore:
- Los saltos de versión mayor se hacen a mano y probados: NestJS 12 es solo ESM
-  - dependency-name: "*"
- Los saltos de versión mayor se hacen a mano y probados: NestJS 12 es solo ESM
-    update-types: ["version-update:semver-major"]
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    # Un solo PR semanal con los parches y menores; menos ruido para revisar.
+    groups:
+      dependencias:
+        update-types: ["minor", "patch"]
+    # Los saltos de versión mayor se hacen a mano y probados. La UI con Vite/React
+    # sale del repo con el issue #3, así que sus bumps no tienen sentido ahora.
+    # Las correcciones de seguridad que no exijan un mayor siguen llegando.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
- Los saltos de versión mayor se hacen a mano y probados: NestJS 12 es solo ESM
-directory: /
- Los saltos de versión mayor se hacen a mano y probados: NestJS 12 es solo ESM
-schedule:
- Los saltos de versión mayor se hacen a mano y probados: NestJS 12 es solo ESM
-  interval: weekly
- Los saltos de versión mayor se hacen a mano y probados: NestJS 12 es solo ESM
-  day: monday
- Los saltos de versión mayor se hacen a mano y probados: NestJS 12 es solo ESM
-groups:
- Los saltos de versión mayor se hacen a mano y probados: NestJS 12 es solo ESM
-  actions:
- Los saltos de versión mayor se hacen a mano y probados: NestJS 12 es solo ESM
-    patterns: ["*"]
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ["*"]
