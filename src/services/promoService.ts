@@ -8,8 +8,18 @@ export interface DomainEvent {
   data: any;
 }
 
+export interface UserCoupon {
+  id: string;
+  promoId: string;
+  promoTitle: string;
+  userId: string;
+  code: string;
+  redeemedAt: string;
+}
+
 class PromoService {
   private promotions: Map<string, Promotion> = new Map();
+  private userCoupons: Map<string, UserCoupon[]> = new Map();
   private notifications: AppNotification[] = [];
   private eventLog: DomainEvent[] = [];
   private globalSeq = 0;
@@ -21,15 +31,15 @@ class PromoService {
 
   public seed() {
     this.promotions.clear();
+    this.userCoupons.clear();
     INITIAL_PROMOTIONS.forEach(p => {
       this.promotions.set(p.id, { ...p });
     });
 
-    // Seed initial notifications
     this.notifications = [
       {
         id: 'notif-1',
-        title: '⚡ ¡Nueva Oferta 2x1 en Zona G!',
+        title: '⚡ ¡Nueva Oferta en Zona G!',
         message: 'Gato Negro Bistro acaba de lanzar 2x1 en cócteles de autor. ¡Quedan 8 cupos!',
         type: 'promo',
         timestamp: new Date(Date.now() - 300000).toISOString(),
@@ -90,6 +100,11 @@ class PromoService {
     };
     this.notifications.unshift(notification);
     return notification;
+  }
+
+  // GET /promos/mine — Cupones del usuario
+  public getUserCoupons(userId: string): UserCoupon[] {
+    return this.userCoupons.get(userId) || [];
   }
 
   // GET /promos & /promos/place/:placeId (HU-17)
@@ -174,7 +189,6 @@ class PromoService {
 
     this.promotions.set(newPromo.id, newPromo);
 
-    // Emite evento PROMO.PUSH
     this.emitEvent('PROMO.PUSH', {
       promoId: newPromo.id,
       placeId: newPromo.establishmentId,
@@ -182,7 +196,6 @@ class PromoService {
       title: newPromo.title
     });
 
-    // Crear notificación para usuarios (HU-89)
     this.addNotification({
       title: `⚡ ¡Nueva Oferta en ${zone}!`,
       message: `${data.placeName || 'Un establecimiento'} ha lanzado: "${newPromo.title}" (${newPromo.currentStock} cupos)`,
@@ -216,7 +229,7 @@ class PromoService {
     return this.promotions.delete(id);
   }
 
-  // POST /promos/:id/claim (CC-1 Atomic Decrement & Concurrency Challenge)
+  // POST /promos/:id/claim (CC-1 Atomic Decrement)
   public async claimPromotion(promoId: string, userId: string): Promise<{
     success: boolean;
     status: number;
@@ -267,6 +280,19 @@ class PromoService {
       }
 
       this.promotions.set(promoId, promo);
+
+      // Save user claimed coupon
+      const coupon: UserCoupon = {
+        id: `cpn-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        promoId: promo.id,
+        promoTitle: promo.title,
+        userId,
+        code: promo.discountCode,
+        redeemedAt: new Date().toISOString()
+      };
+
+      const existingCoupons = this.userCoupons.get(userId) || [];
+      this.userCoupons.set(userId, [coupon, ...existingCoupons]);
 
       this.emitEvent('PROMO.WON', {
         promoId: promo.id,

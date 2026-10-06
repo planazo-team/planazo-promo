@@ -13,6 +13,13 @@ promoRouter.get('/', (req: Request, res: Response) => {
   res.json(promos);
 });
 
+// GET /promos/mine — Cupones del usuario activo (según README API)
+promoRouter.get('/mine', (req: Request, res: Response) => {
+  const userId = (req.headers['x-user-id'] as string) || 'u1';
+  const userCoupons = promoDomainService.getUserCoupons(userId);
+  res.json(userCoupons);
+});
+
 // GET /promos/notifications — Consultar notificaciones en vivo (HU-89 / HU-90)
 promoRouter.get('/notifications', (_req: Request, res: Response) => {
   const notifications = promoDomainService.getNotifications();
