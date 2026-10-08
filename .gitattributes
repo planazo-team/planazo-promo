@@ -1,0 +1,8 @@
+# Normaliza finales de linea a LF en el repo. Los scripts de shell y el Dockerfile
+# deben ser LF siempre, aunque se trabaje desde Windows.
+* text=auto eol=lf
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.png binary
+*.jpg binary
+*.ico binary

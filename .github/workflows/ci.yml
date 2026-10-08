@@ -11,10 +11,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+
       - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
-      - run: npx tsc --noEmit -p tsconfig.json
-      - run: npm run build
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Comprobar tipos
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Pruebas
+        run: npm test -- --ci
+
+      - name: Compilar
+        run: npm run build
+
+      - name: Construir imagen Docker
+        run: docker build -t $GITHUB_REPOSITORY:ci .
