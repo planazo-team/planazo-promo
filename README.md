@@ -33,11 +33,10 @@ Todo entra por [`planazo-api-gateway`](https://github.com/planazo-team/planazo-a
 
 ```
 Redis        promo:{id}:stock      entero, con TTL igual a la duración de la promo
-PostgreSQL   promos  (id, establishment_id, discount, stock_inicial, expires_at)
-             coupons (id, promo_id, user_id, code, redeemed_at)
+Memoria      promos y cupones emitidos (MVP; pasarlos a PostgreSQL no cambia la regla)
 ```
 
-**Por qué dos almacenes:** el contador vive en Redis porque necesita decrementarse de forma indivisible bajo presión; el cupón emitido vive en Postgres porque tiene que sobrevivir a un reinicio. Se escribe en Postgres **solo después** de que Redis confirmó la unidad.
+**Por qué el contador vive aparte:** necesita decrementarse de forma indivisible bajo presión, y eso lo hace Redis con un script Lua. Sin `REDIS_URL` el servicio usa un contador en memoria con la misma regla (solo para desarrollo).
 
 ---
 
@@ -45,10 +44,10 @@ PostgreSQL   promos  (id, establishment_id, discount, stock_inicial, expires_at)
 
 | Método | Ruta | Rol | Qué hace |
 |---|---|---|---|
-| `POST` | `/promos` | negocio | `{discount, stock, duration_s}` — lanza la promoción |
-| `GET` | `/promos?zone=` | cliente | Promociones activas de esa zona |
-| `POST` | `/promos/:id/claim` | cliente | `200 {code}` o `409` |
-| `GET` | `/promos/mine` | cliente | Cupones del usuario |
+| `POST` | `/promos` | negocio | `{placeId, title, discount, stock, durationS}` → `201 Promo` (`expiresAt` epoch ms, `initialStock = stock`) |
+| `GET` | `/promos?zone=` | cliente/negocio | `Promo[]` activas: `stock > 0` y no vencidas (`zone` opcional: `zona-g` \| `zona-t`) |
+| `POST` | `/promos/:id/claim` | cliente | `200 Coupon` o `409 PROMO_AGOTADA` / `409 PROMO_VENCIDA` / `404` |
+| `GET` | `/promos/mine` | cliente | `Coupon[]` del usuario |
 
 ---
 
@@ -78,10 +77,9 @@ return s
 
 | Evento | Payload mínimo | Quién lo recibe |
 |---|---|---|
-| `PROMO.PUSH` | `{promo_id, place_id, zone, discount, expires_at}` | clientes de esa zona |
-| `PROMO.WON` | `{promo_id, user_id, code}` | `user:<id>` y el panel del negocio |
-| `PROMO.REJECTED` | `{promo_id, user_id, reason}` | `user:<id>` |
-| `PROMO.EXPIRED` | `{promo_id}` | clientes de esa zona |
+| `PROMO.PUSH` | la `Promo` completa | `zone:<zona>`, `place:<id>` |
+| `PROMO.WON` | `{promoId, placeId, stock, winner, userId}` | `zone:<zona>`, `place:<id>`, `user:<id>` |
+| `PROMO.EXPIRED` | `{promoId, placeId}` (solo si quedaba stock) | `zone:<zona>`, `place:<id>` |
 
 ---
 
@@ -95,11 +93,14 @@ return s
 
 ## Variables de entorno
 
+Ver [`.env.example`](.env.example). Las que importan:
+
 ```bash
 PORT=3002
-DATABASE_URL=postgresql://user:pass@host:5432/promo
-REDIS_URL=redis://localhost:6379
-BUS_URL=redis://localhost:6379      # puede ser el mismo Redis
+GATEWAY_KEY=...                     # la misma que el gateway; sin ella no se exige (desarrollo)
+REDIS_URL=redis://...               # contador de stock (CC-1). Sin ella: memoria, solo desarrollo
+BUS_URL=redis://...                 # bus de eventos; puede ser el mismo Redis
+SEED_PROMOS=false                   # opcional: no lanzar las 3 promociones de ejemplo al arrancar
 ```
 
 ---
@@ -112,8 +113,19 @@ BUS_URL=redis://localhost:6379      # puede ser el mismo Redis
 
 ---
 
+## Correr en local
+
+```bash
+nvm use            # Node 20
+npm install
+cp .env.example .env
+npm run start:dev  # http://localhost:3002/health
+```
+
+`npm test` corre las pruebas del servicio, incluida la de CC-1 (10 reclamos simultáneos contra stock 2 → exactamente 2 cupones y 8 `PROMO_AGOTADA`). La prueba de carga real está en `planazo-infra/k6/cc1-promo-claim.js`.
+
 ## Despliegue en Railway
 
-1. New Project → Deploy from GitHub repo → `planazo-team/planazo-promo`.
-2. Agrega **PostgreSQL** y **Redis** al proyecto; Railway inyecta `DATABASE_URL` y `REDIS_URL`.
-3. Pásale la URL pública a Juan Diego: es el `PROMO_URL` del gateway.
+1. En el proyecto de Planazo: **New → GitHub repo → `planazo-team/planazo-promo`** (builder Dockerfile, health check `/health`).
+2. Variables: `PORT=3002`, `GATEWAY_KEY` (la del gateway), `REDIS_URL=${{Redis.REDIS_URL}}`, `BUS_URL=${{Redis.REDIS_URL}}`.
+3. El gateway llega por la red privada: `PROMO_URL=http://planazo-promo.railway.internal:3002`.
