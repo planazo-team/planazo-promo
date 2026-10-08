@@ -8,6 +8,7 @@
 | **Retos** | **CC-1** (promociones limitadas) · **RT-2** (su lanzamiento se difunde en vivo) |
 | **Datos** | Redis (stock) + PostgreSQL (cupones emitidos) |
 | **Puerto local sugerido** | `3002` |
+| **Producción** | Railway, solo por red privada: `http://planazo-promo.railway.internal:3002` |
 | **Contexto general** | [planazo-frontend/docs/contexto.md](https://github.com/planazo-team/planazo-frontend/blob/main/docs/contexto.md) |
 
 ---
@@ -126,6 +127,6 @@ npm run start:dev  # http://localhost:3002/health
 
 ## Despliegue en Railway
 
-1. En el proyecto de Planazo: **New → GitHub repo → `planazo-team/planazo-promo`** (builder Dockerfile, health check `/health`).
-2. Variables: `PORT=3002`, `GATEWAY_KEY` (la del gateway), `REDIS_URL=${{Redis.REDIS_URL}}`, `BUS_URL=${{Redis.REDIS_URL}}`.
-3. El gateway llega por la red privada: `PROMO_URL=http://planazo-promo.railway.internal:3002`.
+Ya está desplegado desde GitHub (`main`) por `planazo-infra/scripts/railway-deploy-core.sh`, con `PORT=3002`, `GATEWAY_KEY`, `REDIS_URL=${{Redis.REDIS_URL}}` y `BUS_URL=${{Redis.REDIS_URL}}`, sin dominio público. El gateway llega por `PROMO_URL=http://planazo-promo.railway.internal:3002`. Cada push a `main` redespliega; como las promociones y los cupones viven en memoria, un redespliegue los reinicia (el stock en Redis sí sobrevive, por eso el servicio vuelve a lanzar las tres promociones de ejemplo).
+
+Queda abierto del issue #3: cupones y promociones en PostgreSQL (punto 2) y correr `k6/cc1-promo-claim.js` contra Railway (punto 7).
