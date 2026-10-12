@@ -34,8 +34,16 @@ Todo entra por [`planazo-api-gateway`](https://github.com/planazo-team/planazo-a
 
 ```
 Redis        promo:{id}:stock      entero, con TTL igual a la duración de la promo
-Memoria      promos y cupones emitidos (MVP; pasarlos a PostgreSQL no cambia la regla)
+Redis        promo:{id}:reclamos   set de usuarios que ya reclamaron (uno por persona)
+Redis        game:puesto:{1..3}    zset usuario → momento en que quedó en ese puesto
+PostgreSQL   esquema promo         promos, cupones (UNIQUE promo+usuario), lugares, puestos
 ```
+
+**Reclamar es un solo script Lua** (`src/promo/stock.store.ts`): comprueba que quede stock, que la persona no haya reclamado ya y, si la promo es *solo ganadores*, que haya quedado entre los primeros `puestos` de una partida del minijuego terminada **después** del lanzamiento; y solo entonces resta. Nadie se cuela entre la comprobación y la resta.
+
+**Solo ganadores:** promo escucha `GAME.PARTIDA_FINALIZADA` en el bus (lo publica planazo-game), anota el podio y avisa a cada premiado con `PROMO.UNLOCKED` en `user:<id>`. También escucha `PLACE.CREATED` (booking) para que los negocios nuevos puedan lanzar promociones.
+
+**Si Redis se vacía**, al arrancar se reconstruye el stock de las promos vigentes desde los cupones entregados en PostgreSQL, y los puestos de los últimos 3 días.
 
 **Por qué el contador vive aparte:** necesita decrementarse de forma indivisible bajo presión, y eso lo hace Redis con un script Lua. Sin `REDIS_URL` el servicio usa un contador en memoria con la misma regla (solo para desarrollo).
 
