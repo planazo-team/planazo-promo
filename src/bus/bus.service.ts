@@ -33,6 +33,7 @@ export const BUS_CHANNEL_TOKEN = 'planazo:busChannel';
 export class BusService implements OnModuleDestroy {
   private readonly logger = new Logger(BusService.name);
   private cliente?: Redis;
+  private suscriptor?: Redis;
   private avisoSinBus = false;
   private readonly busUrl: string | undefined;
   private readonly canal: string;
@@ -84,7 +85,40 @@ export class BusService implements OnModuleDestroy {
     return this.cliente;
   }
 
+  /**
+   * Escucha el canal del bus. Promo reacciona a eventos de otros servicios
+   * (partidas terminadas, lugares nuevos) sin llamarlos directamente.
+   * Sin BUS_URL no hace nada.
+   */
+  onEvent(callback: (sobre: EventEnvelope) => void | Promise<void>): void {
+    if (!this.busUrl) {
+      this.logger.warn('BUS_URL no está definida: promo no escuchará eventos de otros servicios.');
+      return;
+    }
+    if (this.suscriptor) return;
+    this.suscriptor = new Redis(this.busUrl, { maxRetriesPerRequest: null });
+    this.suscriptor.on('error', (err: Error) => this.logger.error(`Error en la suscripción al bus: ${err.message}`));
+    this.suscriptor.on('message', (canal: string, mensaje: string) => {
+      if (canal !== this.canal) return;
+      let sobre: EventEnvelope;
+      try {
+        sobre = JSON.parse(mensaje) as EventEnvelope;
+      } catch {
+        this.logger.warn('Evento del bus que no es JSON: se ignora.');
+        return;
+      }
+      Promise.resolve(callback(sobre)).catch((err: unknown) =>
+        this.logger.error(`Error procesando ${sobre.type}: ${err instanceof Error ? err.message : String(err)}`),
+      );
+    });
+    void this.suscriptor.subscribe(this.canal).then(() => this.logger.log(`Escuchando el bus en ${this.canal}.`));
+  }
+
   async onModuleDestroy(): Promise<void> {
+    if (this.suscriptor) {
+      this.suscriptor.disconnect();
+      this.suscriptor = undefined;
+    }
     if (this.cliente) {
       try {
         await this.cliente.quit();

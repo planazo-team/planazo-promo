@@ -15,6 +15,15 @@ export interface Promo {
   stock: number;
   initialStock: number;
   expiresAt: number;
+  /** Cuándo se lanzó (epoch ms). Para las de ganadores, solo cuentan partidas terminadas después. */
+  launchedAt: number;
+  /**
+   * Si es `true`, solo la reclaman quienes quedaron entre los primeros `puestos`
+   * de una partida del minijuego terminada después del lanzamiento.
+   */
+  soloGanadores: boolean;
+  /** 1 = solo el ganador; 3 = podio. Solo aplica si `soloGanadores`. */
+  puestos: number;
 }
 
 /** Cupón entregado a un usuario tras un claim exitoso. */
@@ -36,4 +45,34 @@ export interface LaunchPromoInput {
   discount: string;
   stock: number;
   durationS: number;
+  soloGanadores?: boolean;
+  puestos?: number;
+  /** Solo se usan si el lugar todavía no está en el catálogo de promo (ver PromoService.launch). */
+  placeName?: string;
+  zone?: Zone;
+}
+
+/** Fila del catálogo que promo conoce: nombre y zona de cada lugar. */
+export interface CatalogPlace {
+  id: string;
+  name: string;
+  zone: Zone;
+}
+
+/** Línea de puntaje de GAME.PARTIDA_FINALIZADA (planazo-game, PartidaFinalizadaEventData). */
+export interface LineaPuntaje {
+  jugadorId: string;
+  jugadorNombre: string;
+  puntaje: number;
+  posicionFinal: number;
+  sobrevivio: boolean;
+}
+
+export interface PartidaFinalizada {
+  salaId: string;
+  salaCodigo: string;
+  ganadorJugadorId: string | null;
+  ganadorJugadorNombre: string | null;
+  puntajes: LineaPuntaje[];
+  finalizadaEn: string | number;
 }
