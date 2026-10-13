@@ -43,6 +43,18 @@ const SEMILLA: Semilla[] = [
     soloGanadores: true,
     puestos: 1,
   },
+  { placeId: 'p24', title: 'Cóctel de bienvenida con la clase de salsa', discount: 'Cóctel gratis', stock: 10, durationS: 24 * 3600 },
+  { placeId: 'p19', title: 'Una hora de tejo gratis para grupos de seis', discount: 'Tejo gratis', stock: 6, durationS: 24 * 3600 },
+  { placeId: 'p30', title: '2x1 en boletas para la función de las 9:30', discount: '2x1', stock: 12, durationS: 24 * 3600 },
+  {
+    placeId: 'p32',
+    title: 'Línea de bolos gratis para el podio del Snake',
+    discount: 'Bolos gratis',
+    stock: 6,
+    durationS: 24 * 3600,
+    soloGanadores: true,
+    puestos: 3,
+  },
 ];
 
 /** Las victorias cuentan durante 3 días (ver stock.store.ts). */
@@ -94,12 +106,18 @@ export class PromoService implements OnModuleInit, OnModuleDestroy {
       await this.stock.registrarPuesto(g.userId, g.puesto, g.at);
     }
 
-    if (process.env.SEED_PROMOS !== 'false' && vigentes.length === 0) {
+    // Cada semilla se lanza si no hay una vigente igual (mismo lugar y título):
+    // así una semilla nueva sale con el siguiente despliegue sin duplicar las demás.
+    if (process.env.SEED_PROMOS !== 'false') {
+      let lanzadas = 0;
       for (const s of SEMILLA) {
+        if (vigentes.some((v) => v.placeId === s.placeId && v.title === s.title)) continue;
         const lugar = await this.repo.catalogo(s.placeId);
-        if (lugar) await this.crear({ ...s, placeName: lugar.name, zone: lugar.zone }, false);
+        if (!lugar) continue;
+        await this.crear({ ...s, placeName: lugar.name, zone: lugar.zone }, false);
+        lanzadas++;
       }
-      this.logger.log(`${SEMILLA.length} promociones semilla lanzadas.`);
+      if (lanzadas) this.logger.log(`${lanzadas} promociones semilla lanzadas.`);
     }
   }
 

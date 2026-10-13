@@ -4,7 +4,7 @@ import type { Zone } from './promo.types';
  * Nombre y zona de cada establecimiento del piloto. Es una copia del catálogo
  * semilla de booking (planazo-booking/src/booking/seed.ts): promo no llama a
  * booking para resolverlo porque ningún servicio le pide nada a otro, y el
- * catálogo del MVP es fijo (29 lugares, dos zonas).
+ * catálogo del MVP es fijo (43 lugares, dos zonas).
  */
 export const CATALOGO: Readonly<Record<string, { name: string; zone: Zone }>> = {
   p1: { name: 'Fideos de la Nona', zone: 'zona-g' },
@@ -36,4 +36,18 @@ export const CATALOGO: Readonly<Record<string, { name: string; zone: Zone }>> = 
   p27: { name: 'Café Lectura Quinta', zone: 'zona-g' },
   p28: { name: 'Cine bajo las estrellas', zone: 'zona-t' },
   p29: { name: 'Arepas La Esquina', zone: 'zona-g' },
+  p30: { name: 'Multicine La 82', zone: 'zona-t' },
+  p31: { name: 'Teatro de la 71', zone: 'zona-g' },
+  p32: { name: 'Bolera Strike 85', zone: 'zona-t' },
+  p33: { name: 'Feria Chapinero Creativo', zone: 'zona-g' },
+  p34: { name: 'Escape Room La Celda', zone: 'zona-g' },
+  p35: { name: 'Galería Nocturna 77', zone: 'zona-t' },
+  p36: { name: 'Mini golf Neón', zone: 'zona-g' },
+  p37: { name: 'Vértigo Club', zone: 'zona-t' },
+  p38: { name: 'La Rumbera', zone: 'zona-g' },
+  p39: { name: 'Bajo Cero', zone: 'zona-t' },
+  p40: { name: 'Hotel Casa Virrey', zone: 'zona-t' },
+  p41: { name: 'Hostal Parche Chapinero', zone: 'zona-g' },
+  p42: { name: 'Hotel Mirador 93', zone: 'zona-t' },
+  p43: { name: 'Aparta-hotel Quinta', zone: 'zona-g' },
 };
