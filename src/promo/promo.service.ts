@@ -272,7 +272,10 @@ export class PromoService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /** Anota el podio y avisa a quienes acaban de desbloquear un bono. */
+  /**
+   * Anota el podio y avisa a quienes acaban de desbloquear un bono. Cada
+   * persona recibe el aviso de cada bono una sola vez, aunque siga ganando.
+   */
   async registrarPartida(partida: PartidaFinalizada, at?: number): Promise<void> {
     const fin = typeof partida?.finalizadaEn === 'number'
       ? partida.finalizadaEn
@@ -295,6 +298,7 @@ export class PromoService implements OnModuleInit, OnModuleDestroy {
     const premios = (await this.listActive()).filter((p) => p.soloGanadores && p.launchedAt <= fin);
     for (const [userId, { puesto, nombre }] of podio) {
       for (const promo of premios.filter((p) => puesto <= p.puestos)) {
+        if (!(await this.stock.avisarUnaVez(promo.id, userId))) continue;
         void this.bus.publish('PROMO.UNLOCKED', { promo, puesto, salaCodigo: partida.salaCodigo, nombre }, [`user:${userId}`]);
       }
     }

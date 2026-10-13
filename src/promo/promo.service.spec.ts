@@ -158,6 +158,23 @@ describe.each(repos)('PromoService (%s)', (_nombre, crearRepo) => {
       expect(r).toEqual(['OK', 'OK', 'OK', 'SOLO_GANADORES']);
     });
 
+    it('ganar varias partidas seguidas avisa el bono una sola vez', async () => {
+      await lanzar({ soloGanadores: true, puestos: 1, stock: 3 });
+      for (let k = 0; k < 5; k++) await servicio.registrarPartida(partida([['c-ana', 1], ['c-beto', 2]]));
+      const avisos = publicados.filter((e) => e.type === 'PROMO.UNLOCKED');
+      expect(avisos.map((a) => a.topics[0])).toEqual(['user:c-ana']);
+    });
+
+    it('no avisa a quien ya reclamó el bono ni cuando ya no queda stock', async () => {
+      const promo = await lanzar({ soloGanadores: true, puestos: 1, stock: 1 });
+      await servicio.registrarPartida(partida([['c-ana', 1]]));
+      expect(await codigo(servicio.claim({ ...CLIENTE, userId: 'c-ana' }, promo.id))).toBe('OK');
+      publicados.length = 0;
+      await servicio.registrarPartida(partida([['c-ana', 1]]));
+      await servicio.registrarPartida(partida([['c-beto', 1]]));
+      expect(publicados.filter((e) => e.type === 'PROMO.UNLOCKED')).toHaveLength(0);
+    });
+
     it('una victoria de ANTES del lanzamiento no cuenta: hay que jugar por el bono', async () => {
       await servicio.registrarPartida(partida([['c-ana', 1]], new Date(Date.now() - 60_000).toISOString()));
       const promo = await lanzar({ soloGanadores: true, puestos: 1 });
