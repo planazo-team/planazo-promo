@@ -4,7 +4,7 @@ import type { Zone } from './promo.types';
  * Nombre y zona de cada establecimiento del piloto. Es una copia del catálogo
  * semilla de booking (planazo-booking/src/booking/seed.ts): promo no llama a
  * booking para resolverlo porque ningún servicio le pide nada a otro, y el
- * catálogo del MVP es fijo (12 lugares, dos zonas).
+ * catálogo del MVP es fijo (29 lugares, dos zonas).
  */
 export const CATALOGO: Readonly<Record<string, { name: string; zone: Zone }>> = {
   p1: { name: 'Fideos de la Nona', zone: 'zona-g' },
@@ -19,4 +19,21 @@ export const CATALOGO: Readonly<Record<string, { name: string; zone: Zone }>> = 
   p10: { name: 'Stand-up en la 83', zone: 'zona-t' },
   p11: { name: 'Hotel 82', zone: 'zona-t' },
   p12: { name: 'Parque El Virrey', zone: 'zona-t' },
+  p13: { name: 'Parque de la 93', zone: 'zona-t' },
+  p14: { name: 'Parque Japón', zone: 'zona-t' },
+  p15: { name: 'Sendero Quebrada La Vieja', zone: 'zona-g' },
+  p16: { name: 'Parque de los Hippies', zone: 'zona-g' },
+  p17: { name: 'Parque El Chicó', zone: 'zona-t' },
+  p18: { name: 'Ciclovía de la Séptima', zone: 'zona-g' },
+  p19: { name: 'Tejo El Turmequé', zone: 'zona-g' },
+  p20: { name: 'La Azotea de la 70', zone: 'zona-g' },
+  p21: { name: 'Cervecería Los Cerros', zone: 'zona-g' },
+  p22: { name: 'La Ficha · juegos de mesa', zone: 'zona-g' },
+  p23: { name: 'Karaoke El Gritón', zone: 'zona-t' },
+  p24: { name: 'Salsa Caleña 82', zone: 'zona-t' },
+  p25: { name: 'Food trucks de la 85', zone: 'zona-t' },
+  p26: { name: 'Brunch Club 70', zone: 'zona-g' },
+  p27: { name: 'Café Lectura Quinta', zone: 'zona-g' },
+  p28: { name: 'Cine bajo las estrellas', zone: 'zona-t' },
+  p29: { name: 'Arepas La Esquina', zone: 'zona-g' },
 };
