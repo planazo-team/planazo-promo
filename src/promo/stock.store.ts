@@ -36,6 +36,12 @@ export interface StockStore {
   getMany(promoIds: string[]): Promise<Array<number | null>>;
   /** Registra que `userId` quedó en el puesto `puesto` de una partida terminada en `at`. */
   registrarPuesto(userId: string, puesto: number, at: number): Promise<void>;
+  /**
+   * ¿Hay que avisarle a `userId` que desbloqueó este bono? `true` solo la
+   * primera vez, y solo si el bono sigue vigente, con stock y sin reclamar.
+   * Así ganar diez partidas seguidas no manda diez avisos del mismo premio.
+   */
+  avisarUnaVez(promoId: string, userId: string): Promise<boolean>;
 }
 
 export const STOCK_STORE = 'planazo:stockStore';
@@ -46,6 +52,7 @@ export const MAX_PUESTOS = 3;
 const claveStock = (promoId: string) => `promo:${promoId}:stock`;
 const claveReclamos = (promoId: string) => `promo:${promoId}:reclamos`;
 const clavePuesto = (puesto: number) => `game:puesto:${puesto}`;
+const claveAvisados = (promoId: string) => `promo:${promoId}:avisados`;
 
 /** Las victorias se olvidan a los 3 días: una promo dura como mucho 24 h. */
 const RETENCION_MS = 3 * 24 * 3600 * 1000;
@@ -99,9 +106,32 @@ end
 return 1
 `;
 
+/**
+ * Aviso de bono desbloqueado, una sola vez por persona y promoción.
+ * KEYS: 1 stock · 2 reclamos · 3 avisados. ARGV: 1 userId.
+ */
+const AVISO_LUA = `
+local stock = redis.call('GET', KEYS[1])
+if not stock or tonumber(stock) <= 0 then
+  return 0
+end
+if redis.call('SISMEMBER', KEYS[2], ARGV[1]) == 1 then
+  return 0
+end
+if redis.call('SADD', KEYS[3], ARGV[1]) == 0 then
+  return 0
+end
+local ttl = redis.call('PTTL', KEYS[1])
+if ttl > 0 then
+  redis.call('PEXPIRE', KEYS[3], ttl)
+end
+return 1
+`;
+
 interface RedisConScripts extends Redis {
   tomarUnidad(k1: string, k2: string, k3: string, k4: string, k5: string, ...argv: string[]): Promise<number>;
   devolverUnidad(k1: string, k2: string, userId: string): Promise<number>;
+  avisarUnaVez(k1: string, k2: string, k3: string, userId: string): Promise<number>;
 }
 
 /** Implementación real: contador en Redis con decremento atómico por Lua. */
@@ -118,6 +148,7 @@ export class RedisStockStore implements StockStore, OnModuleDestroy {
     }) as RedisConScripts;
     this.redis.defineCommand('tomarUnidad', { numberOfKeys: 5, lua: TAKE_LUA });
     this.redis.defineCommand('devolverUnidad', { numberOfKeys: 2, lua: RELEASE_LUA });
+    this.redis.defineCommand('avisarUnaVez', { numberOfKeys: 3, lua: AVISO_LUA });
     this.redis.on('error', (err: Error) => this.logger.error(`Redis de stock: ${err.message}`));
     this.logger.log('Stock de promociones en Redis (reclamo atómico con Lua).');
   }
@@ -161,6 +192,10 @@ export class RedisStockStore implements StockStore, OnModuleDestroy {
       .exec();
   }
 
+  async avisarUnaVez(promoId: string, userId: string): Promise<boolean> {
+    return (await this.redis.avisarUnaVez(claveStock(promoId), claveReclamos(promoId), claveAvisados(promoId), userId)) === 1;
+  }
+
   async onModuleDestroy(): Promise<void> {
     try {
       await this.redis.quit();
@@ -177,11 +212,11 @@ export class RedisStockStore implements StockStore, OnModuleDestroy {
  */
 @Injectable()
 export class MemoryStockStore implements StockStore {
-  private readonly contadores = new Map<string, { stock: number; venceEn: number; reclamos: Set<string> }>();
+  private readonly contadores = new Map<string, { stock: number; venceEn: number; reclamos: Set<string>; avisados: Set<string> }>();
   private readonly puestos = new Map<number, Map<string, number>>();
 
   async init(promoId: string, stock: number, ttlS: number): Promise<void> {
-    this.contadores.set(promoId, { stock, venceEn: Date.now() + ttlS * 1000, reclamos: new Set() });
+    this.contadores.set(promoId, { stock, venceEn: Date.now() + ttlS * 1000, reclamos: new Set(), avisados: new Set() });
   }
 
   async take(promoId: string, userId: string, regla: ReglaReclamo): Promise<number> {
@@ -216,6 +251,13 @@ export class MemoryStockStore implements StockStore {
     const m = this.puestos.get(puesto) ?? new Map<string, number>();
     m.set(userId, Math.max(at, m.get(userId) ?? 0));
     this.puestos.set(puesto, m);
+  }
+
+  async avisarUnaVez(promoId: string, userId: string): Promise<boolean> {
+    const c = this.vigente(promoId);
+    if (!c || c.stock <= 0 || c.reclamos.has(userId) || c.avisados.has(userId)) return false;
+    c.avisados.add(userId);
+    return true;
   }
 
   private vigente(promoId: string) {
