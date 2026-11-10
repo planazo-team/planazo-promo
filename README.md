@@ -1,5 +1,7 @@
 # planazo-promo
 
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=planazo-team_planazo-promo&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=planazo-team_planazo-promo) [![Cobertura](https://sonarcloud.io/api/project_badges/measure?project=planazo-team_planazo-promo&metric=coverage)](https://sonarcloud.io/component_measures?id=planazo-team_planazo-promo&metric=coverage)
+
 **Cupones de stock finito.** El click que compite por un cupón. Nada más — y por eso aguanta el pico sin afectar a nadie.
 
 | | |
