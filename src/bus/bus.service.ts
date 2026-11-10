@@ -18,6 +18,13 @@ export interface EventEnvelope<TPayload = unknown> {
   payload: TPayload;
   /** Momento de emisión en epoch milisegundos. */
   at: number;
+  /**
+   * Instante (epoch ms) en que el servicio emisor publica en el bus. A diferencia
+   * de `at`, que realtime reemplaza por el momento en que lo persiste, este valor
+   * llega intacto al cliente: con él se mide la latencia publicación → entrega
+   * (ESC-06). Opcional para no romper a quien publique sin él.
+   */
+  emittedAt?: number;
 }
 
 /** Tokens de inyección para sobreescribir la URL y el canal del bus (útil en tests). */
@@ -49,12 +56,14 @@ export class BusService implements OnModuleDestroy {
 
   /** Construye el sobre y lo publica en el canal del bus. */
   async publish(type: string, payload: unknown, topics: string[]): Promise<void> {
+    const ahora = Date.now();
     const sobre: EventEnvelope = {
       id: randomUUID(),
       type,
       topics,
       payload,
-      at: Date.now(),
+      at: ahora,
+      emittedAt: ahora,
     };
 
     if (!this.busUrl) {
