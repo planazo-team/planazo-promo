@@ -78,7 +78,7 @@ export class MemoryPromoRepo implements PromoRepo {
   async cuponesEntregados(promoId: string) {
     return this.cupones.filter((c) => c.promoId === promoId).length;
   }
-  async guardarPuesto(userId: string, puesto: number, at: number) {
+  async guardarPuesto(userId: string, puesto: number, at: number, _salaId?: string) {
     this.puestos.push({ userId, puesto, at });
   }
   async puestosDesde(desde: number) {
