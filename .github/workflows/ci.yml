@@ -9,6 +9,11 @@ jobs:
   ci:
     name: ci
     runs-on: ubuntu-latest
+    # El contexto `secrets` no se puede usar dentro de un `if:` (restricción
+    # de GitHub Actions, no un typo); por eso se refleja primero en env a
+    # nivel de job y el `if:` del paso de Sonar compara `env.SONAR_TOKEN`.
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
       - uses: actions/checkout@v7
 
@@ -35,10 +40,8 @@ jobs:
       # SONAR_ORGANIZATION / SONAR_PROJECT_KEY) como secret del repo —
       # eso es un paso manual en sonarcloud.io + GitHub.
       - name: SonarCloud
-        if: ${{ secrets.SONAR_TOKEN != '' }}
+        if: ${{ env.SONAR_TOKEN != '' }}
         uses: SonarSource/sonarqube-scan-action@v4
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
             -Dsonar.host.url=https://sonarcloud.io
