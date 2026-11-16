@@ -20,6 +20,7 @@ describe('HealthController', () => {
     expect(res.status).toBe('UP');
     expect(res.service).toBe('planazo-promo');
     expect(res.version).toBe(version);
+    expect(typeof res.replica).toBe('string');
     expect(typeof res.uptimeS).toBe('number');
     expect(res.uptimeS).toBeGreaterThanOrEqual(0);
   });

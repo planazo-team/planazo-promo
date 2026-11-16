@@ -2,11 +2,14 @@ import { Controller, Get } from '@nestjs/common';
 import { Public } from '../common/public.decorator';
 import { config } from '../config';
 import { version } from '../version';
+import { REPLICA } from '../common/access-log';
 
 export interface HealthResponse {
   service: string;
   status: 'UP';
   version: string;
+  /** Réplica que respondió (RAILWAY_REPLICA_ID recortado o hostname). */
+  replica: string;
   uptimeS: number;
 }
 
@@ -20,6 +23,7 @@ export class HealthController {
       service: config.serviceName,
       status: 'UP',
       version,
+      replica: REPLICA,
       uptimeS: Math.round(process.uptime()),
     };
   }
