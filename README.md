@@ -11,6 +11,13 @@
 | **Producción** | Railway, solo por red privada: `http://planazo-promo.railway.internal:3002` |
 | **Contexto general** | [planazo-frontend/docs/contexto.md](https://github.com/planazo-team/planazo-frontend/blob/main/docs/contexto.md) |
 
+**Escenario 4 (Disponibilidad):** `docker compose up` en este repo levanta 2
+réplicas de este servicio + un balanceador Nginx propio (`nginx.conf`),
+publicado en el mismo puerto `3002` de siempre. Requiere que
+`planazo-infra` ya esté arriba (crea la red compartida `planazo-net` y
+`postgres-promo`/`redis`). Detalle completo:
+[`planazo-infra/ESCENARIO-04-DISPONIBILIDAD.md`](https://github.com/planazo-team/planazo-infra/blob/main/ESCENARIO-04-DISPONIBILIDAD.md).
+
 ---
 
 ## Contrato con el gateway
