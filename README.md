@@ -57,7 +57,7 @@ PostgreSQL   esquema promo         promos, cupones (UNIQUE promo+usuario), lugar
 |---|---|---|---|
 | `POST` | `/promos` | negocio | `{placeId, title, discount, stock, durationS}` → `201 Promo` (`expiresAt` epoch ms, `initialStock = stock`) |
 | `GET` | `/promos?zone=` | cliente/negocio | `Promo[]` activas: `stock > 0` y no vencidas (`zone` opcional: `zona-g` \| `zona-t`) |
-| `POST` | `/promos/:id/claim` | cliente | `200 Coupon` o `409 PROMO_AGOTADA` / `409 PROMO_VENCIDA` / `404` |
+| `POST` | `/promos/:id/claim` | cliente | `200 Coupon` o `409 PROMO_AGOTADA` / `409 PROMO_VENCIDA` / `404` / `429 LIMITE_RECLAMOS` |
 | `GET` | `/promos/mine` | cliente | `Coupon[]` del usuario |
 
 ---
@@ -81,6 +81,14 @@ return s
 ### Por qué no es el mismo mecanismo que booking
 
 `booking` usa versionado porque su recurso es **compuesto**: una franja con cantidad variable, que el negocio puede editar mientras el cliente decide. Aquí el recurso es **un contador simple**: no hay nada que versionar, solo hay que restar sin que dos resten lo mismo. Usar versionado aquí sería cargar complejidad que no compra nada; usar `DECR` en booking no detectaría la edición concurrente del panel.
+
+---
+
+## Límite de tasa en el reclamo (ESC-03)
+
+`POST /promos/:id/claim` acepta como mucho `CLAIM_RATE_LIMIT_MAX` intentos por usuario (cualquier promo, con éxito o sin él) en una ventana de `CLAIM_RATE_LIMIT_WINDOW_S` segundos — por defecto, 5 intentos cada 60s. De más responde `429 LIMITE_RECLAMOS` con un header `Retry-After`, antes de tocar el stock. Frena a un bot que reintenta a fuerza bruta para acaparar cupones; no afecta a una persona reclamando a mano.
+
+Se cuenta por `userId` (la identidad que ya exige el gateway), no por IP, con el mismo criterio que la deduplicación de reclamos. El contador vive en Redis (`ClaimRateLimitGuard` → `claim-rate-limit.store.ts`), compartido entre las 2 réplicas detrás del balanceador (ver `ESCENARIO-04-DISPONIBILIDAD.md` en `planazo-infra`); sin `REDIS_URL` cae a memoria (cada réplica cuenta aparte, solo desarrollo).
 
 ---
 
@@ -112,6 +120,8 @@ GATEWAY_KEY=...                     # la misma que el gateway; sin ella no se ex
 REDIS_URL=redis://...               # contador de stock (CC-1). Sin ella: memoria, solo desarrollo
 BUS_URL=redis://...                 # bus de eventos; puede ser el mismo Redis
 SEED_PROMOS=false                   # opcional: no lanzar las 3 promociones de ejemplo al arrancar
+CLAIM_RATE_LIMIT_MAX=5               # intentos de claim por usuario en la ventana (ESC-03). Por defecto 5
+CLAIM_RATE_LIMIT_WINDOW_S=60          # tamaño de la ventana, en segundos. Por defecto 60
 ```
 
 ---

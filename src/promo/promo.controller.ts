@@ -1,6 +1,7 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { Identity, Roles } from '../common/identity';
+import { ClaimRateLimitGuard } from './claim-rate-limit.guard';
 import { PromoService } from './promo.service';
 import type { LaunchPromoInput, Zone } from './promo.types';
 
@@ -45,6 +46,7 @@ export class PromoController {
   }
 
   @Roles('cliente')
+  @UseGuards(ClaimRateLimitGuard)
   @Post(':id/claim')
   @HttpCode(200)
   claim(@Identity() who: Identity, @Req() req: Request, @Param('id') id: string) {

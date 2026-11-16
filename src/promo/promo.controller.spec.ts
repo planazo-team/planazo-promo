@@ -1,5 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import type { Request } from 'express';
+import { CLAIM_RATE_LIMIT_STORE } from './claim-rate-limit.store';
+import { ClaimRateLimitGuard } from './claim-rate-limit.guard';
 import { PromoController } from './promo.controller';
 import { PromoService } from './promo.service';
 import type { LaunchPromoInput } from './promo.types';
@@ -23,6 +25,8 @@ describe('PromoController', () => {
           provide: PromoService,
           useValue: mockPromoService,
         },
+        ClaimRateLimitGuard,
+        { provide: CLAIM_RATE_LIMIT_STORE, useValue: { hit: jest.fn().mockResolvedValue({ limitado: false, reintentarEnS: 0 }) } },
       ],
     }).compile();
 
