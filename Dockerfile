@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Primero solo los manifiestos para aprovechar la caché de capas de Docker.
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --ignore-scripts
 
 COPY . .
 RUN npm run build \

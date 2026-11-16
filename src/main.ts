@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { Logger, LogLevel } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { accessLog } from './common/access-log';
 import { config } from './config';
 
 /** Traduce LOG_LEVEL al conjunto de niveles que Nest debe mostrar. */
@@ -17,6 +18,8 @@ async function bootstrap(): Promise<void> {
   // El guard de gateway key y el filtro de errores se registran como providers
   // globales en AppModule (APP_GUARD / APP_FILTER) para que puedan inyectar
   // dependencias; aquí solo queda el ciclo de vida.
+  // x-served-by y una línea JSON por petición (ESC-04: qué réplica atendió; ESC-07: logs).
+  app.use(accessLog());
   app.enableShutdownHooks();
 
   await app.listen(config.port);
