@@ -38,13 +38,24 @@
     "collectCoverageFrom": [
       "**/*.ts",
       "!**/*.spec.ts",
-      "!main.ts"
+      "!main.ts",
+      "!**/*.module.ts"
     ],
     "coverageDirectory": "../coverage",
     "coverageReporters": [
       "text-summary",
       "lcov"
-    ]
+    ],
+    "transform": {
+      "^.+.ts$": [
+        "ts-jest",
+        {
+          "tsconfig": {
+            "importHelpers": true
+          }
+        }
+      ]
+    }
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
