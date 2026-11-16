@@ -41,7 +41,7 @@ jobs:
       # eso es un paso manual en sonarcloud.io + GitHub.
       - name: SonarCloud
         if: ${{ env.SONAR_TOKEN != '' }}
-        uses: SonarSource/sonarqube-scan-action@v4
+        uses: SonarSource/sonarqube-scan-action@v6
         with:
           args: >
             -Dsonar.host.url=https://sonarcloud.io
