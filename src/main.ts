@@ -3,6 +3,7 @@ import { Logger, LogLevel } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { accessLog } from './common/access-log';
+import { medirHttp, servidorDeMetricas } from './common/metrics';
 import { config } from './config';
 
 /** Traduce LOG_LEVEL al conjunto de niveles que Nest debe mostrar. */
@@ -20,9 +21,11 @@ async function bootstrap(): Promise<void> {
   // dependencias; aquí solo queda el ciclo de vida.
   // x-served-by y una línea JSON por petición (ESC-04: qué réplica atendió; ESC-07: logs).
   app.use(accessLog());
+  app.use(medirHttp());
   app.enableShutdownHooks();
 
   await app.listen(config.port);
+  servidorDeMetricas();
   Logger.log(`${config.serviceName} escuchando en :${config.port}`, 'Bootstrap');
 }
 
