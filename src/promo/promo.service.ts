@@ -15,6 +15,7 @@ import type { Identity } from '../common/identity';
 import { PROMO_REPO, type PromoRepo } from './promo.repo';
 import { AGOTADA, MAX_PUESTOS, NO_GANADOR, STOCK_STORE, YA_RECLAMADA, type StockStore } from './stock.store';
 import type { Coupon, LaunchPromoInput, PartidaFinalizada, Promo, Zone } from './promo.types';
+import { cupones, promosLanzadas, rechazosCupon } from '../common/metrics';
 
 const ALFABETO = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -208,6 +209,16 @@ export class PromoService implements OnModuleInit, OnModuleDestroy {
    * emite el cupón. Cada rechazo dice por qué: nunca un éxito falso.
    */
   async claim(who: Identity & { userName: string }, promoId: string): Promise<Coupon> {
+    try {
+      return await this.reclamar(who, promoId);
+    } catch (err) {
+      const codigoError = (err as { getResponse?: () => unknown }).getResponse?.() as { code?: unknown } | undefined;
+      rechazosCupon.inc({ motivo: typeof codigoError?.code === 'string' ? codigoError.code : 'ERROR' });
+      throw err;
+    }
+  }
+
+  private async reclamar(who: Identity & { userName: string }, promoId: string): Promise<Coupon> {
     const promo = await this.repo.promo(promoId);
     if (!promo) {
       throw new NotFoundException({ code: 'PROMO_NO_EXISTE', message: 'La promoción no existe.' });
@@ -269,6 +280,7 @@ export class PromoService implements OnModuleInit, OnModuleDestroy {
       [`zone:${promo.zone}`, `place:${promo.placeId}`, `user:${who.userId}`],
     );
 
+    cupones.inc({ zona: promo.zone });
     const { userId: _omit, ...publico } = coupon;
     return publico;
   }
@@ -351,6 +363,7 @@ export class PromoService implements OnModuleInit, OnModuleDestroy {
 
     if (publicar) void this.bus.publish('PROMO.PUSH', { ...promo }, [`zone:${promo.zone}`, `place:${promo.placeId}`]);
     this.programarVencimiento(promo);
+    promosLanzadas.inc({ zona: promo.zone });
     return { ...promo };
   }
 
