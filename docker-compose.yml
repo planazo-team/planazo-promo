@@ -1,0 +1,64 @@
+# Escenario 4 (Disponibilidad): este servicio corre con 2 réplicas + su
+# propio balanceador Nginx — autosuficiente, sin depender de planazo-infra
+# para escalar. Requiere que `planazo-infra` ya esté arriba (crea la red
+# compartida `planazo-net` y `postgres-promo`/`redis`); este repo solo se
+# conecta a ella, no la crea.
+#
+#   docker compose up --build -d     → 2 réplicas + lb, igual que siempre en :3002
+#
+# Ver ../planazo-infra/ESCENARIO-04-DISPONIBILIDAD.md para el detalle del
+# escenario de calidad y cómo demostrarlo. Nota: al partir el compose en dos
+# (este y el de planazo-infra), `depends_on` ya no puede cruzar de uno a
+# otro — si levantas este repo sin que postgres-promo/redis ya estén arriba,
+# las réplicas reintentan la conexión (no se bloquean entre sí, como
+# corresponde a servicios realmente autónomos).
+
+networks:
+  default:
+    name: planazo-net
+    external: true
+
+x-app-common: &app-common
+  build:
+    context: .
+  restart: unless-stopped
+  env_file: ../planazo-infra/.env
+  environment:
+    PORT: "3002"
+    DATABASE_URL: postgresql://promo:${PG_PASSWORD}@postgres-promo:5432/promo   # aún no se usa: promos y cupones en memoria
+    REDIS_URL: redis://redis:6379
+    BUS_URL: redis://redis:6379
+    # GATEWAY_KEY viene de env_file.
+  healthcheck:
+    test: ["CMD-SHELL", "wget -qO- http://localhost:3002/health || exit 1"]
+    interval: 10s
+    timeout: 3s
+    retries: 6
+    start_period: 15s
+
+services:
+  promo-1:
+    <<: *app-common
+    container_name: planazo-promo-1
+
+  promo-2:
+    <<: *app-common
+    container_name: planazo-promo-2
+
+  lb:
+    image: nginx:1.27-alpine
+    container_name: planazo-promo-lb
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "3002:3002"
+    networks:
+      default:
+        # api-gateway le sigue hablando a http://promo:3002 sin cambiar
+        # ninguna variable de entorno: el alias ahora resuelve al balanceador.
+        aliases: [promo]
+    depends_on:
+      promo-1:
+        condition: service_healthy
+      promo-2:
+        condition: service_healthy
