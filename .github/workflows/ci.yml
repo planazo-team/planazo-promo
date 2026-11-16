@@ -27,7 +27,23 @@ jobs:
         run: npm run lint
 
       - name: Pruebas
-        run: npm test -- --ci
+        run: npm test -- --ci --coverage
+
+      # Escaneo de mantenibilidad (duplicación, code smells, cobertura).
+      # No falla el build si el secret no está configurado: falta crear
+      # el proyecto en SonarCloud y guardar SONAR_TOKEN (y opcionalmente
+      # SONAR_ORGANIZATION / SONAR_PROJECT_KEY) como secret del repo —
+      # eso es un paso manual en sonarcloud.io + GitHub.
+      - name: SonarCloud
+        if: ${{ secrets.SONAR_TOKEN != '' }}
+        uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY || 'planazo-promo' }}
 
       - name: Compilar
         run: npm run build

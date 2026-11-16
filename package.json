@@ -40,7 +40,11 @@
       "!**/*.spec.ts",
       "!main.ts"
     ],
-    "coverageDirectory": "../coverage"
+    "coverageDirectory": "../coverage",
+    "coverageReporters": [
+      "lcov",
+      "text"
+    ]
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
