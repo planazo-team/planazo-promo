@@ -3,7 +3,7 @@ import Redis from 'ioredis';
 import { config } from '../config';
 
 /**
- * Límite de tasa de POST /promos/:id/claim (ESC-03: "limitación de tasa en
+ * Límite de tasa de POST /promos/:id/claim (CC-1: "limitación de tasa en
  * reclamo"), para frenar bots que acaparan cupones a fuerza de reintentos.
  * Se cuenta por `userId` (la identidad que ya exige el gateway), no por IP:
  * es la misma clave con la que el stock ya deduplica reclamos, y evita que

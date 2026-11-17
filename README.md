@@ -84,7 +84,7 @@ return s
 
 ---
 
-## Límite de tasa en el reclamo (ESC-03)
+## Límite de tasa en el reclamo (CC-1)
 
 `POST /promos/:id/claim` acepta como mucho `CLAIM_RATE_LIMIT_MAX` intentos por usuario (cualquier promo, con éxito o sin él) en una ventana de `CLAIM_RATE_LIMIT_WINDOW_S` segundos — por defecto, 5 intentos cada 60s. De más responde `429 LIMITE_RECLAMOS` con un header `Retry-After`, antes de tocar el stock. Frena a un bot que reintenta a fuerza bruta para acaparar cupones; no afecta a una persona reclamando a mano.
 
@@ -120,7 +120,7 @@ GATEWAY_KEY=...                     # la misma que el gateway; sin ella no se ex
 REDIS_URL=redis://...               # contador de stock (CC-1). Sin ella: memoria, solo desarrollo
 BUS_URL=redis://...                 # bus de eventos; puede ser el mismo Redis
 SEED_PROMOS=false                   # opcional: no lanzar las 3 promociones de ejemplo al arrancar
-CLAIM_RATE_LIMIT_MAX=5               # intentos de claim por usuario en la ventana (ESC-03). Por defecto 5
+CLAIM_RATE_LIMIT_MAX=5               # intentos de claim por usuario en la ventana (CC-1). Por defecto 5
 CLAIM_RATE_LIMIT_WINDOW_S=60          # tamaño de la ventana, en segundos. Por defecto 60
 ```
 

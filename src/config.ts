@@ -27,7 +27,7 @@ export const config = {
   jwtSecret: process.env.JWT_SECRET,
   /** Nivel de log: debug | log | warn | error. */
   logLevel: process.env.LOG_LEVEL ?? 'log',
-  /** Límite de tasa en POST /promos/:id/claim (ESC-03): intentos permitidos por usuario en la ventana. */
+  /** Límite de tasa en POST /promos/:id/claim (CC-1): intentos permitidos por usuario en la ventana. */
   claimRateLimitMax: leerEntero(process.env.CLAIM_RATE_LIMIT_MAX, 5),
   /** Ventana del límite de reclamo, en segundos. */
   claimRateLimitWindowS: leerEntero(process.env.CLAIM_RATE_LIMIT_WINDOW_S, 60),

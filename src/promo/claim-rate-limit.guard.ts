@@ -6,7 +6,7 @@ import { config } from '../config';
 import { CLAIM_RATE_LIMIT_STORE, type ClaimRateLimitStore } from './claim-rate-limit.store';
 
 /**
- * Guard de POST /promos/:id/claim (ESC-03): más de `claimRateLimitMax`
+ * Guard de POST /promos/:id/claim (CC-1): más de `claimRateLimitMax`
  * intentos por usuario en `claimRateLimitWindowS` responden 429, antes de
  * llegar al servicio. Va después de RolesGuard (@Roles('cliente') en el
  * controlador ya exige identidad), por eso aquí se asume presente.
